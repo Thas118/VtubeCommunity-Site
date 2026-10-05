@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vtube Community</title>
+  <meta name="description" content="Vtube Community — сообщество специалистов: монтаж, нарезка, эдит и программирование. Калькулятор стоимости, портфолио работ и оформление заказа через Telegram.">
+  <meta name="theme-color" content="#0b0e17">
+  <meta name="color-scheme" content="dark">
+
+  <!-- Социальные сети. После деплоя добавьте og:image с абсолютным URL. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Vtube Community">
+  <meta property="og:title" content="Vtube Community">
+  <meta property="og:description" content="Монтаж, нарезка и программирование для авторов. Расчёт стоимости на сайте и заказ через Telegram.">
+  <meta property="og:locale" content="ru_RU">
+  <!-- <meta property="og:image" content="https://example.com/og-image.png"> -->
+
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Vtube Community",
+    "description": "Сообщество специалистов: монтаж, нарезка и программирование для авторов."
+  }
+  </script>
+
+  <script src="js/utils.js" defer></script>
+  <script src="js/data.js" defer></script>
+  <script src="js/cart.js" defer></script>
+  <script src="js/calculator.js" defer></script>
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к содержимому</a>
+
+  <!-- ===== Шапка ===== -->
+  <header class="site-header">
+    <div class="container header-row">
+      <h1 class="brand">
+        <a id="brand-link" class="brand__link" href="#" target="_blank" rel="noopener noreferrer">Vtube Community</a>
+      </h1>
+      <button id="cart-button" class="cart-button" type="button" aria-haspopup="dialog" aria-controls="cart-drawer" aria-expanded="false">
+        <svg class="cart-button__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="9" cy="20" r="1.5"></circle>
+          <circle cx="18" cy="20" r="1.5"></circle>
+          <path d="M2.5 3.5h2.2l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.3l1.5-7.2H6"></path>
+        </svg>
+        <span class="cart-button__label">Корзина</span>
+        <span id="cart-badge" class="cart-badge" hidden>0</span>
+      </button>
+    </div>
+    <nav class="site-nav" aria-label="Разделы сайта">
+      <div class="container">
+        <div id="nav-tabs" class="nav-tabs" role="tablist"></div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ===== Основное содержимое ===== -->
+  <main id="main" class="site-main container">
+    <div id="panels"></div>
+    <noscript>
+      <h2>Vtube Community</h2>
+      <p>Для работы калькулятора и корзины включите JavaScript. Связаться с нами можно в Telegram.</p>
+    </noscript>
+  </main>
+
+  <!-- ===== Нижняя часть (место под документы и информацию) ===== -->
+  <footer class="site-footer">
+    <div class="container">
+      <div id="footer-info" class="footer-info"></div>
+      <p id="footer-copy" class="footer-copy"></p>
+    </div>
+  </footer>
+
+  <!-- ===== Общий фон под открытые окна ===== -->
+  <div id="backdrop" class="backdrop" hidden></div>
+
+  <!-- ===== Корзина ===== -->
+  <aside id="cart-drawer" class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" hidden>
+    <header class="cart-drawer__head">
+      <h2 id="cart-title" class="cart-drawer__title">Корзина</h2>
+      <button id="cart-close" class="icon-btn" type="button" aria-label="Закрыть корзину">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div id="cart-body" class="cart-drawer__body"></div>
+    <footer id="cart-footer" class="cart-drawer__foot" hidden>
+      <div class="cart-total">
+        <span>Итого:</span>
+        <strong id="cart-total-value">0&nbsp;₽</strong>
+      </div>
+      <details class="cart-order-preview">
+        <summary>Посмотреть готовое сообщение</summary>
+        <pre id="order-message-preview"></pre>
+      </details>
+      <button id="checkout-button" class="btn btn--primary btn--block" type="button">Оформить</button>
+      <button id="cart-clear" class="btn btn--block" type="button">Очистить корзину</button>
+      <p class="cart-note">Скопируем это сообщение и откроем Telegram. Выберите чат и отправьте его — бот не используется.</p>
+    </footer>
+  </aside>
+
+  <!-- ===== Подробная карточка клиента ===== -->
+  <div id="client-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="client-modal-title" hidden>
+    <div class="modal__panel">
+      <button id="modal-close" class="icon-btn modal__close" type="button" aria-label="Закрыть карточку клиента">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div id="modal-content" class="modal__content"></div>
+    </div>
+  </div>
+
+  <!-- ===== Уведомления ===== -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
