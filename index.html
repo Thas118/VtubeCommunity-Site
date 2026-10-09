@@ -43,19 +43,19 @@
       <h1 class="brand">
         <a id="brand-link" class="brand__link" href="#" target="_blank" rel="noopener noreferrer">Vtube Community</a>
       </h1>
-      <button id="cart-button" class="cart-button" type="button" aria-haspopup="dialog" aria-controls="cart-drawer" aria-expanded="false">
-        <svg class="cart-button__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="9" cy="20" r="1.5"></circle>
-          <circle cx="18" cy="20" r="1.5"></circle>
-          <path d="M2.5 3.5h2.2l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.3l1.5-7.2H6"></path>
-        </svg>
-        <span class="cart-button__label">Корзина</span>
-        <span id="cart-badge" class="cart-badge" hidden>0</span>
-      </button>
     </div>
     <nav class="site-nav" aria-label="Разделы сайта">
-      <div class="container">
+      <div class="container nav-row">
         <div id="nav-tabs" class="nav-tabs" role="tablist"></div>
+        <button id="cart-button" class="cart-button" type="button" aria-haspopup="dialog" aria-controls="cart-drawer" aria-expanded="false">
+          <svg class="cart-button__icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="20" r="1.5"></circle>
+            <circle cx="18" cy="20" r="1.5"></circle>
+            <path d="M2.5 3.5h2.2l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.3l1.5-7.2H6"></path>
+          </svg>
+          <span class="cart-button__label">Корзина</span>
+          <span id="cart-badge" class="cart-badge" hidden>0</span>
+        </button>
       </div>
     </nav>
   </header>
@@ -73,7 +73,10 @@
   <footer class="site-footer">
     <div class="container">
       <div id="footer-info" class="footer-info"></div>
-      <p id="footer-copy" class="footer-copy"></p>
+      <div class="footer-bottom">
+        <div id="footer-madeby" class="footer-madeby"></div>
+        <p id="footer-copy" class="footer-copy"></p>
+      </div>
     </div>
   </footer>
 
@@ -90,14 +93,50 @@
     </header>
     <div id="cart-body" class="cart-drawer__body"></div>
     <footer id="cart-footer" class="cart-drawer__foot" hidden>
-      <div class="cart-total">
-        <span>Итого:</span>
-        <strong id="cart-total-value">0&nbsp;₽</strong>
+      <!-- Данные заказчика для сообщения -->
+      <div class="order-fields">
+        <label class="order-field">
+          <span class="order-field__label">Имя заказчика</span>
+          <input id="order-name" class="order-field__input" type="text" autocomplete="name" placeholder="Как к вам обращаться">
+        </label>
+        <label class="order-field">
+          <span class="order-field__label">Контактные данные</span>
+          <input id="order-contact" class="order-field__input" type="text" autocomplete="username" placeholder="Telegram / e-mail для связи">
+        </label>
+        <label class="order-field">
+          <span class="order-field__label">Данные зрителей</span>
+          <input id="order-viewers" class="order-field__input" type="text" placeholder="Канал, аудитория, ссылки">
+        </label>
+        <label class="order-check">
+          <input id="order-bot-hosting" type="checkbox">
+          <span>Бот размещается на хостинге исполнителя</span>
+        </label>
       </div>
+
       <details class="cart-order-preview">
         <summary>Посмотреть готовое сообщение</summary>
         <pre id="order-message-preview"></pre>
       </details>
+      <p class="cart-clipboard-hint">Данное сообщение уже находится в вашем буфере обмена. При нажатии „Оформить“ нажмите на кнопку сообщения в канал и вставьте.</p>
+
+      <!-- Итого в середине корзины -->
+      <div class="cart-total">
+        <span>Итого:</span>
+        <strong id="cart-total-value">0&nbsp;₽</strong>
+      </div>
+
+      <!-- Согласия перед отправкой -->
+      <div class="cart-consents">
+        <label class="order-check">
+          <input id="consent-pd" type="checkbox">
+          <span>Согласие на <a href="#" target="_blank" rel="noopener noreferrer">обработку персональных данных</a></span>
+        </label>
+        <label class="order-check">
+          <input id="consent-offer" type="checkbox">
+          <span>Согласие с <a href="#" target="_blank" rel="noopener noreferrer">офертой</a></span>
+        </label>
+      </div>
+
       <button id="checkout-button" class="btn btn--primary btn--block" type="button">Оформить</button>
       <button id="cart-clear" class="btn btn--block" type="button">Очистить корзину</button>
       <p class="cart-note">Скопируем это сообщение и откроем Telegram. Выберите чат и отправьте его — бот не используется.</p>
@@ -111,6 +150,16 @@
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
       <div id="modal-content" class="modal__content"></div>
+    </div>
+  </div>
+
+  <!-- ===== Подробная карточка услуги ===== -->
+  <div id="service-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="service-modal-title" hidden>
+    <div class="modal__panel">
+      <button id="service-modal-close" class="icon-btn modal__close" type="button" aria-label="Закрыть описание услуги">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div id="service-modal-content" class="modal__content"></div>
     </div>
   </div>
 

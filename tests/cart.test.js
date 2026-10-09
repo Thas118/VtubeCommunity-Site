@@ -99,12 +99,23 @@ console.log('3. Сообщение для Telegram');
 {
   const { sandbox } = createSession(shared);
   const message = vm.runInContext('Cart.buildOrderMessage()', sandbox);
-  assert(typeof message === 'string' && message.indexOf('Здравствуйте! Хочу оформить заказ в Vtube Community.') === 0,
-    'шапка сообщения совпадает с ТЗ');
+  assert(typeof message === 'string' && message.indexOf('Хочу оформить заказ в Vtube Community.') === 0,
+    'шапка сообщения совпадает с ТЗ (без «Здравствуйте!»)');
   assert(message.includes('• Shorts — 5 × 500 ₽'), 'строка Shorts корректна');
   assert(message.includes('• Нарезка — 2 × 300 ₽'), 'строка Нарезка корректна');
   assert(message.includes('Итого: ' + vm.runInContext('formatPrice(Cart.getTotal())', sandbox)),
     'итоговая сумма в сообщении равна сумме корзины');
+
+  // Данные заказчика добавляются в сообщение.
+  const withDetails = vm.runInContext(
+    "Cart.buildOrderMessage({ name: 'Иван', contact: '@ivan', viewers: '10к', botHosting: true })",
+    sandbox);
+  assert(withDetails.includes('Имя: Иван'), 'имя заказчика попадает в сообщение');
+  assert(withDetails.includes('Контакты: @ivan'), 'контакты заказчика попадают в сообщение');
+  assert(withDetails.includes('Данные зрителей: 10к'), 'данные зрителей попадают в сообщение');
+  assert(withDetails.includes('Бот размещается на хостинге исполнителя: да'),
+    'информация о размещении бота попадает в сообщение');
+  assert(!withDetails.includes('Здравствуйте'), 'в новом шаблоне нет приветствия');
 
   const shareUrl = vm.runInContext('Cart.buildShareUrl(Cart.buildOrderMessage())', sandbox);
   assert(shareUrl.startsWith(sandbox.SITE_DATA.links.telegramShare + '?'), 'ссылка Telegram Share построена');

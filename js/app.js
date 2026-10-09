@@ -48,6 +48,10 @@ function buildPanels() {
       panel = createAboutPanel();
     } else if (section.type === 'team') {
       panel = createTeamPanel();
+    } else if (section.type === 'promo') {
+      panel = createPromoPanel();
+    } else if (section.type === 'howto') {
+      panel = createHowtoPanel();
     }
 
     if (!panel) return;
@@ -110,11 +114,62 @@ function pluralizeWorks(count) {
   return 'работ';
 }
 
+/** Склонение слова «ролик». */
+function pluralizeClips(count) {
+  var mod10 = count % 10;
+  var mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'ролик';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'ролика';
+  return 'роликов';
+}
+
+/** Является ли работа видео (плейлист или одиночный YouTube-ролик). */
+function isVideoWork(work) {
+  if (work && Array.isArray(work.videos)) return true;
+  return !!parseYouTubeUrl(work && work.url ? work.url : '').videoId;
+}
+
+/** Сколько роликов в работе (для подписи рядом с названием). */
+function getWorkClipCount(work) {
+  if (work && Array.isArray(work.videos) && work.videos.length) return work.videos.length;
+  if (typeof work.count === 'number' && work.count > 0) return work.count;
+  return 1;
+}
+
+/** Количество работ клиента с дедупликацией видео между плейлистами. */
+function clientWorkCount(client) {
+  var seen = {};
+  var count = 0;
+  (client.works || []).forEach(function (work) {
+    if (isVideoWork(work)) {
+      if (Array.isArray(work.videos) && work.videos.length) {
+        work.videos.forEach(function (id) {
+          var key = client.id + ':' + id;
+          if (!seen[key]) {
+            seen[key] = true;
+            count += 1;
+          }
+        });
+      } else {
+        var info = parseYouTubeUrl(work.url || '');
+        var key = client.id + ':' + (info.videoId || work.url);
+        if (!seen[key]) {
+          seen[key] = true;
+          count += 1;
+        }
+      }
+    } else {
+      count += 1; // не-видео deliverable (например, бот) считается одной работой
+    }
+  });
+  return count;
+}
+
 function createPortfolioPanel() {
   var section = createElement('section', 'panel');
   section.appendChild(createElement('h2', 'panel__title', 'Портфолио'));
   section.appendChild(createElement('p', 'panel__lead',
-    'Клиенты, с которыми работало Vtube Community. Нажмите на карточку, чтобы открыть подробную информацию.'));
+    'Наши клиенты. Нажмите на карточку, чтобы открыть подробную информацию.'));
 
   var grid = createElement('div', 'portfolio-grid');
 
@@ -132,8 +187,9 @@ function createPortfolioPanel() {
 
     card.appendChild(avatar);
     card.appendChild(createElement('span', 'client-card__name', client.name));
+    var count = clientWorkCount(client);
     card.appendChild(createElement('span', 'client-card__meta',
-      client.works.length + ' ' + pluralizeWorks(client.works.length)));
+      count + ' ' + pluralizeWorks(count)));
 
     card.addEventListener('click', function () {
       openClientModal(client.id);
@@ -142,6 +198,39 @@ function createPortfolioPanel() {
   });
 
   section.appendChild(grid);
+  return section;
+}
+
+function createPromoPanel() {
+  var data = SITE_DATA.promo;
+  var section = createElement('section', 'panel');
+  section.appendChild(createElement('h2', 'panel__title', data.title));
+
+  var plate = createElement('div', 'placeholder-card');
+  plate.appendChild(createElement('span', 'placeholder-card__badge', data.badge));
+  plate.appendChild(createElement('p', 'placeholder-card__text', data.text));
+
+  section.appendChild(plate);
+  return section;
+}
+
+function createHowtoPanel() {
+  var data = SITE_DATA.howto;
+  var section = createElement('section', 'panel');
+  section.appendChild(createElement('h2', 'panel__title', data.title));
+
+  var card = createElement('div', 'about-card card');
+  data.paragraphs.forEach(function (text) {
+    card.appendChild(createElement('p', 'about-card__text', text));
+  });
+
+  var cta = createElement('a', 'btn btn--primary', data.ctaLabel);
+  cta.href = SITE_DATA.links.telegram;
+  cta.target = '_blank';
+  cta.rel = 'noopener noreferrer';
+  card.appendChild(cta);
+
+  section.appendChild(card);
   return section;
 }
 
@@ -201,23 +290,24 @@ var lastFocused = null;
 
 /** Показ/скрытие общего фона и блокировка прокрутки страницы. */
 function syncOverlay() {
-  var anyOpen = cartOpen || modalOpen;
+  var anyOpen = cartOpen || modalOpen || serviceModalOpen;
   document.body.classList.toggle('no-scroll', anyOpen);
   if (anyOpen) {
     backdropEl.hidden = false;
     requestAnimationFrame(function () {
-      if (cartOpen || modalOpen) backdropEl.classList.add('is-open');
+      if (cartOpen || modalOpen || serviceModalOpen) backdropEl.classList.add('is-open');
     });
   } else {
     backdropEl.classList.remove('is-open');
     setTimeout(function () {
-      if (!cartOpen && !modalOpen) backdropEl.hidden = true;
+      if (!cartOpen && !modalOpen && !serviceModalOpen) backdropEl.hidden = true;
     }, 300);
   }
 }
 
 function openCart() {
   if (modalOpen) closeClientModal();
+  if (serviceModalOpen) closeServiceModal();
   if (cartOpen) return;
   cartOpen = true;
   cartDrawer.hidden = false;
@@ -331,8 +421,28 @@ function renderCart() {
     list.appendChild(renderCartItem(item));
   });
   cartBody.appendChild(list);
+  updateOrderPreview();
+}
+
+/** Читает данные заказчика из полей оформления в шторке корзины. */
+function readOrderDetails() {
+  function val(id) {
+    var el = document.getElementById(id);
+    return el ? String(el.value || '').trim() : '';
+  }
+  var botHostingEl = document.getElementById('order-bot-hosting');
+  return {
+    name: val('order-name'),
+    contact: val('order-contact'),
+    viewers: val('order-viewers'),
+    botHosting: !!(botHostingEl && botHostingEl.checked)
+  };
+}
+
+/** Обновляет предпросмотр сообщения с учётом заполненных данных. */
+function updateOrderPreview() {
   var messagePreview = document.getElementById('order-message-preview');
-  if (messagePreview) messagePreview.textContent = Cart.buildOrderMessage();
+  if (messagePreview) messagePreview.textContent = Cart.buildOrderMessage(readOrderDetails());
 }
 
 /** Формирует сообщение заказа и открывает Telegram. */
@@ -342,6 +452,16 @@ function checkout() {
     showToast('Корзина пуста');
     return;
   }
+
+  // Проверяем оба согласия непосредственно перед отправкой (#4.1).
+  var pdCheckbox = document.getElementById('consent-pd');
+  var offerCheckbox = document.getElementById('consent-offer');
+  if (!pdCheckbox || !pdCheckbox.checked || !offerCheckbox || !offerCheckbox.checked) {
+    showToast('Отметьте оба согласия: обработка данных и оферта');
+    return;
+  }
+
+  message = Cart.buildOrderMessage(readOrderDetails());
 
   copyTextToClipboard(message).then(function (ok) {
     showToast(ok
@@ -498,11 +618,25 @@ function buildClientContent(client) {
   var worksList = createElement('div', 'works-list');
   client.works.forEach(function (work) {
     var workCard = createElement('article', 'work-card');
+
+    var headRow = createElement('div', 'work-card__head');
     var titleLink = createElement('a', 'work-card__title', work.title);
     titleLink.href = work.url;
     titleLink.target = '_blank';
     titleLink.rel = 'noopener noreferrer';
-    workCard.appendChild(titleLink);
+    headRow.appendChild(titleLink);
+
+    // Рядом с названием плейлиста показываем количество роликов.
+    // Если ролик всего один — бейдж не показываем.
+    if (isVideoWork(work)) {
+      var clipCount = getWorkClipCount(work);
+      if (clipCount > 1) {
+        var clipBadge = createElement('span', 'work-card__count',
+          clipCount + ' ' + pluralizeClips(clipCount));
+        headRow.appendChild(clipBadge);
+      }
+    }
+    workCard.appendChild(headRow);
 
     var thumbUrl = getYouTubeThumbnailUrl(work.url);
     if (thumbUrl) {
@@ -535,10 +669,10 @@ function buildClientContent(client) {
   });
   wrap.appendChild(worksList);
 
-  /* Количество заказов */
+  /* Количество работ клиента (с дедупликацией видео между плейлистами) */
   var orders = createElement('p', 'client__orders');
   orders.appendChild(document.createTextNode('Общее количество работ: '));
-  var ordersStrong = createElement('strong', null, String(client.works.length));
+  var ordersStrong = createElement('strong', null, String(clientWorkCount(client)));
   orders.appendChild(ordersStrong);
   wrap.appendChild(orders);
 
@@ -585,28 +719,206 @@ function closeClientModal() {
 }
 
 /* =========================================================
+ * Модальное окно услуги (открывается кнопкой услуги)
+ * ========================================================= */
+
+var serviceModalEl = null;
+var serviceModalContent = null;
+var serviceModalCloseBtn = null;
+var serviceModalOpen = false;
+
+/** Отрисовывает содержимое окна услуги: описание, цена, количество, «В корзину». */
+function buildServiceContent(dept, service) {
+  clearNode(serviceModalContent);
+
+  var wrap = createElement('div', 'service-modal');
+
+  var head = createElement('div', 'service-modal__head');
+  var nameEl = createElement('h3', 'service-modal__name', service.name);
+  nameEl.id = 'service-modal-title';
+  head.appendChild(nameEl);
+  var priceTag = createElement('span', 'service-modal__price',
+    (dept.priceFrom ? 'от ' : '') + formatPrice(service.price) +
+    (service.priceFixed ? ' · фиксированная цена' : ' · за единицу'));
+  head.appendChild(priceTag);
+  wrap.appendChild(head);
+
+  wrap.appendChild(createElement('p', 'service-modal__desc', service.description));
+
+  // Текущее количество в общей корзине (если услугу уже добавили).
+  var inCart = 0;
+  Cart.getItems().forEach(function (item) {
+    if (item.deptId === dept.id && item.serviceId === service.id) inCart = item.qty;
+  });
+  if (inCart > 0) {
+    var inCartNote = createElement('p', 'service-modal__incart');
+    inCartNote.textContent = 'Уже в корзине: ' + inCart + ' шт.';
+    wrap.appendChild(inCartNote);
+  }
+
+  var controls = createElement('div', 'service-modal__controls');
+
+  var qtyBox = createElement('div', 'qty');
+  var decBtn = createElement('button', 'qty__btn');
+  decBtn.type = 'button';
+  decBtn.setAttribute('data-svc-act', 'dec');
+  decBtn.setAttribute('aria-label', 'Уменьшить количество');
+  decBtn.textContent = '−';
+
+  var qtyValue = createElement('span', 'qty__value', '1');
+  qtyValue.setAttribute('data-role', 'qty');
+
+  var incBtn = createElement('button', 'qty__btn');
+  incBtn.type = 'button';
+  incBtn.setAttribute('data-svc-act', 'inc');
+  incBtn.setAttribute('aria-label', 'Увеличить количество');
+  incBtn.textContent = '+';
+
+  qtyBox.appendChild(decBtn);
+  qtyBox.appendChild(qtyValue);
+  qtyBox.appendChild(incBtn);
+
+  var addBtn = createElement('button', 'btn btn--primary', 'В корзину');
+  addBtn.type = 'button';
+  addBtn.setAttribute('data-svc-act', 'add');
+
+  controls.appendChild(qtyBox);
+  controls.appendChild(addBtn);
+  wrap.appendChild(controls);
+
+  var state = { qty: 1 };
+
+  controls.addEventListener('click', function (event) {
+    var btn = event.target.closest('button[data-svc-act]');
+    if (!btn || !controls.contains(btn)) return;
+    var act = btn.getAttribute('data-svc-act');
+
+    if (act === 'inc') {
+      state.qty = Math.min(999, state.qty + 1);
+    } else if (act === 'dec') {
+      state.qty = Math.max(1, state.qty - 1);
+    } else if (act === 'add') {
+      if (Cart.add(dept.id, service.id, state.qty)) {
+        showToast('«' + service.name + '» — добавлено в корзину');
+        state.qty = 1;
+        buildServiceContent(dept, service);
+        return;
+      }
+    }
+    qtyValue.textContent = String(state.qty);
+  });
+
+  serviceModalContent.appendChild(wrap);
+}
+
+function openServiceModal(deptId, serviceId) {
+  var dept = Cart.getDepartment(deptId);
+  if (!dept) return;
+  var service = Cart.getService(deptId, serviceId);
+  if (!service) return;
+
+  if (modalOpen) closeClientModal();
+  if (cartOpen) closeCart();
+
+  buildServiceContent(dept, service);
+  serviceModalOpen = true;
+  serviceModalEl.hidden = false;
+  requestAnimationFrame(function () {
+    serviceModalEl.classList.add('is-open');
+  });
+  syncOverlay();
+  lastFocused = document.activeElement;
+  if (serviceModalCloseBtn) serviceModalCloseBtn.focus();
+}
+
+function closeServiceModal() {
+  if (!serviceModalOpen) return;
+  serviceModalOpen = false;
+  serviceModalEl.classList.remove('is-open');
+  setTimeout(function () {
+    if (!serviceModalOpen) serviceModalEl.hidden = true;
+  }, 250);
+  syncOverlay();
+  if (lastFocused && typeof lastFocused.focus === 'function') {
+    lastFocused.focus();
+  }
+}
+
+/* =========================================================
  * Нижняя часть сайта
  * ========================================================= */
 
 function renderFooter() {
   var info = document.getElementById('footer-info');
   var copy = document.getElementById('footer-copy');
+  var madeBy = document.getElementById('footer-madeby');
   if (!info) return;
 
   clearNode(info);
-  (SITE_DATA.footer.blocks || []).forEach(function (block) {
-    var card = createElement('div', 'footer-block');
-    card.appendChild(createElement('h4', 'footer-block__title', block.title));
-    card.appendChild(createElement('p', 'footer-block__text', block.text));
-    info.appendChild(card);
-  });
 
-  if (copy) copy.textContent = SITE_DATA.footer.copyright || '';
+  var footer = SITE_DATA.footer || {};
+  var docs = footer.documents;
+
+  /* Раздел «Документы»: реквизиты исполнителя. */
+  if (docs) {
+    var card = createElement('div', 'footer-block footer-docs');
+    card.appendChild(createElement('h4', 'footer-block__title', docs.title));
+
+    var list = createElement('dl', 'footer-docs__list');
+    function addRow(term, value) {
+      var dt = createElement('dt', 'footer-docs__term', term);
+      var dd = createElement('dd', 'footer-docs__value', value);
+      list.appendChild(dt);
+      list.appendChild(dd);
+    }
+    addRow('ФИО исполнителя', docs.fullName);
+    addRow('ИНН', docs.inn);
+    if (docs.email) {
+      var mailLink = createElement('a', 'footer-docs__value');
+      mailLink.href = 'mailto:' + docs.email;
+      mailLink.textContent = docs.email;
+      list.appendChild(createElement('dt', 'footer-docs__term', 'Электронная почта'));
+      list.appendChild(mailLink);
+    }
+    addRow('Режим ответа на обращения', docs.responseTime);
+    card.appendChild(list);
+
+    /* Кнопки-ссылки на документы. */
+    if (footer.documentLinks && footer.documentLinks.length) {
+      var linksRow = createElement('div', 'footer-docs__links');
+      footer.documentLinks.forEach(function (docLink) {
+        var a = createElement('a', 'btn btn--small', docLink.label);
+        var href = SITE_DATA.links && docLink.url in SITE_DATA.links
+          ? SITE_DATA.links[docLink.url]
+          : (docLink.url || '#');
+        a.href = href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        linksRow.appendChild(a);
+      });
+      card.appendChild(linksRow);
+    }
+
+    info.appendChild(card);
+  }
+
+  if (madeBy) madeBy.textContent = footer.madeBy || '';
+  if (copy) copy.textContent = footer.copyright || '';
 }
 
 /* =========================================================
  * Инициализация
  * ========================================================= */
+
+/** Проставляет ссылку на документ для чекбокса согласия. */
+function wireConsentLink(checkboxId, linkKey) {
+  var box = document.getElementById(checkboxId);
+  if (!box || !box.parentElement) return;
+  var link = box.parentElement.querySelector('a');
+  if (link && SITE_DATA.links && SITE_DATA.links[linkKey]) {
+    link.href = SITE_DATA.links[linkKey];
+  }
+}
 
 function initApp() {
   /* Элементы */
@@ -624,8 +936,11 @@ function initApp() {
   modalEl = document.getElementById('client-modal');
   modalContent = document.getElementById('modal-content');
   modalCloseBtn = document.getElementById('modal-close');
+  serviceModalEl = document.getElementById('service-modal');
+  serviceModalContent = document.getElementById('service-modal-content');
+  serviceModalCloseBtn = document.getElementById('service-modal-close');
 
-  if (!navTabsEl || !panelsEl || !cartDrawer || !modalEl) {
+  if (!navTabsEl || !panelsEl || !cartDrawer || !modalEl || !serviceModalEl) {
     console.error('Vtube Community: не найдены обязательные элементы разметки.');
     return;
   }
@@ -633,6 +948,10 @@ function initApp() {
   /* Шапка: название -> Telegram */
   var brandLink = document.getElementById('brand-link');
   if (brandLink) brandLink.href = SITE_DATA.links.telegram;
+
+  /* Ссылки согласий на документы (оферта / политика). */
+  wireConsentLink('consent-pd', 'privacy');
+  wireConsentLink('consent-offer', 'offer');
 
   /* Разделы */
   buildNav();
@@ -688,9 +1007,25 @@ function initApp() {
   /* Модальное окно клиента */
   modalCloseBtn.addEventListener('click', closeClientModal);
 
+  /* Модальное окно услуги */
+  if (serviceModalCloseBtn) {
+    serviceModalCloseBtn.addEventListener('click', closeServiceModal);
+  }
+
+  /* Поля оформления: живое обновление предпросмотра сообщения */
+  ['order-name', 'order-contact', 'order-viewers', 'order-bot-hosting'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', updateOrderPreview);
+      el.addEventListener('change', updateOrderPreview);
+    }
+  });
+
   /* Общий фон закрывает верхнее открытое окно */
   backdropEl.addEventListener('click', function () {
-    if (modalOpen) {
+    if (serviceModalOpen) {
+      closeServiceModal();
+    } else if (modalOpen) {
       closeClientModal();
     } else if (cartOpen) {
       closeCart();
@@ -700,7 +1035,9 @@ function initApp() {
   /* Escape */
   document.addEventListener('keydown', function (event) {
     if (event.key !== 'Escape') return;
-    if (modalOpen) {
+    if (serviceModalOpen) {
+      closeServiceModal();
+    } else if (modalOpen) {
       closeClientModal();
     } else if (cartOpen) {
       closeCart();

@@ -179,12 +179,13 @@ var Cart = (function () {
 
   /**
    * Текст сообщения для Telegram по формату из ТЗ.
-   * Возвращает null при пустой корзине.
+   * @param {Object} [details] — данные заказчика (имя, контакты, зрители, хостинг бота).
+   * @returns {string|null} null при пустой корзине.
    */
-  function buildOrderMessage() {
+  function buildOrderMessage(details) {
     if (isEmpty()) return null;
     var lines = [
-      'Здравствуйте! Хочу оформить заказ в Vtube Community.',
+      'Хочу оформить заказ в Vtube Community.',
       '',
       'Услуги:'
     ];
@@ -193,6 +194,19 @@ var Cart = (function () {
     });
     lines.push('');
     lines.push('Итого: ' + formatPrice(getTotal()));
+
+    // Дополнительные данные заказчика (по ТЗ). Добавляются только заполненные поля.
+    var extra = [];
+    if (details) {
+      if (details.name) extra.push('Имя: ' + details.name);
+      if (details.contact) extra.push('Контакты: ' + details.contact);
+      if (details.viewers) extra.push('Данные зрителей: ' + details.viewers);
+      if (details.botHosting) extra.push('Бот размещается на хостинге исполнителя: да');
+    }
+    if (extra.length) {
+      lines.push('');
+      lines.push(extra.join('\n'));
+    }
     return lines.join('\n');
   }
 

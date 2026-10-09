@@ -61,23 +61,26 @@ async function main() {
   await waitForLoad(window);
 
   console.log('1. Шапка и навигация');
-  assert(document.querySelectorAll('.nav-tab').length === 5, 'в навигации 5 вкладок');
+  assert(document.querySelectorAll('.nav-tab').length === 7, 'в навигации 7 вкладок');
   assert(document.querySelector('.brand__link').textContent === 'Vtube Community', 'название Vtube Community в шапке');
   assert(document.querySelector('.brand__link').getAttribute('href') === window.SITE_DATA.links.telegram,
     'название ссылается на Telegram-канал');
   assert(document.getElementById('tab-editing').classList.contains('is-active'),
     'первая вкладка активна при загрузке');
-  assert(document.querySelectorAll('#panels .panel').length === 5, 'отрендерено 5 панелей');
+  assert(document.querySelectorAll('#panels .panel').length === 7, 'отрендерено 7 панелей');
   assert(document.getElementById('panel-editing').hidden === false, 'панель «Отдел монтажа» видима');
   assert(document.getElementById('panel-programming').hidden === true, 'панель программирования скрыта');
+  assert(!!document.getElementById('tab-promo'), 'вкладка «Акции» присутствует');
+  assert(!!document.getElementById('tab-howto'), 'вкладка «Как заказать» присутствует');
+  assert(!!document.getElementById('service-modal'), 'модальное окно услуги есть в разметке');
   assert(window.SITE_DATA.departments.every((dept) => dept.services.length >= 1),
     'в каждом отделе есть шаблонные услуги');
-  var totalCards = document.querySelectorAll('.service-card').length;
+  var totalCards = document.querySelectorAll('.service-btn').length;
   var expectedCards = window.SITE_DATA.departments.reduce(function (sum, dept) {
     return sum + dept.services.length;
   }, 0);
   assert(totalCards === expectedCards,
-    'отделы отображают услуги вместо заглушек');
+    'отделы отображают услуги интерактивными кнопками');
 
   /* Добавляем тестовые услуги, чтобы проверить калькулятор и корзину. */
   window.SITE_DATA.departments.find((dept) => dept.id === 'editing').services = [
@@ -94,53 +97,58 @@ async function main() {
   window.buildPanels();
   window.activateSection('editing', false);
 
-  console.log('2. Отдел монтажа: карточки услуг');
-  const serviceCards = document.querySelectorAll('#panel-editing .service-card');
-  assert(serviceCards.length === 3, '3 карточки услуг (Shorts, Нарезка, Эдит)');
-  const shortsCard = document.querySelector('#panel-editing [data-service-id="shorts"]');
-  assert(shortsCard.querySelector('.service-card__price').textContent === '500 ₽',
-    'у Shorts фиксированная цена 500 ₽');
-  assert(shortsCard.querySelector('.service-card__unit').textContent === 'фиксированная цена',
-    'подпись «фиксированная цена» у Shorts');
-  assert(shortsCard.querySelector('[data-act="add"]').disabled === true, 'кнопка «В корзину» неактивна при количестве 0');
-  assert(shortsCard.querySelector('.qty__value').tagName === 'SPAN',
-    'количество отображается текстом (только +/-)');
+  console.log('2. Отдел монтажа: кнопки услуг и сортировка по цене');
+  const serviceBtns = document.querySelectorAll('#panel-editing .service-btn');
+  assert(serviceBtns.length === 3, '3 кнопки услуг (Shorts, Нарезка, Эдит)');
+  // Сортировка по возрастанию цены. Тестовые цены: Нарезка 300, Shorts 500, Эдит 700.
+  const btnPrices = Array.from(serviceBtns).map((b) => b.querySelector('.service-btn__price').textContent);
+  assert(btnPrices[0].includes('300'), 'первая (дешёвая) услуга — Нарезка 300 ₽');
+  assert(btnPrices[0].startsWith('от '), 'цена в формате «от N ₽» в отделе монтажа');
+  assert(btnPrices[1].includes('500'), 'вторая услуга — Shorts 500 ₽');
+  assert(btnPrices[2].includes('700'), 'третья (дорогая) услуга — Эдит 700 ₽');
 
-  console.log('3. Калькулятор: количество и подсветка');
-  const incShorts = shortsCard.querySelector('[data-act="inc"]');
-  incShorts.click();
-  incShorts.click();
-  incShorts.click();
-  assert(shortsCard.querySelector('.qty__value').textContent === '3', 'три клика «+» -> количество 3');
-  assert(shortsCard.classList.contains('is-selected'), 'карточка выделена (is-selected)');
-  assert(shortsCard.querySelector('[data-act="add"]').disabled === false, 'кнопка «В корзину» активна');
+  console.log('3. Открытие услуги в модальном окне и добавление в корзину');
+  const shortsBtn = document.querySelector('#panel-editing [data-service-id="shorts"]');
+  shortsBtn.click();
+  const serviceModal = document.getElementById('service-modal');
+  assert(serviceModal.hidden === false, 'модальное окно услуги открылось по клику на кнопку');
+  const svcContent = document.getElementById('service-modal-content');
+  assert(svcContent.textContent.includes('Shorts'), 'в окне название услуги');
+  assert(svcContent.querySelector('.service-modal__price').textContent.includes('от 500 ₽'),
+    'в окне цена в формате «от 500 ₽»');
+  assert(svcContent.querySelector('.service-modal__price').textContent.includes('фиксированная цена'),
+    'в окне пометка фиксированной цены');
+  assert(svcContent.querySelector('.qty__value').textContent === '1', 'количество по умолчанию 1');
 
-  const summary = document.querySelector('#panel-editing .calc__summary');
-  assert(summary.textContent.includes('Shorts × 3'), 'расчёт показывает «Shorts × 3»');
-  assert(summary.textContent.includes('1 500'.replace(/ /g, '\u00A0')) ||
-    summary.textContent.includes('1 500'), 'стоимость позиции 1 500 ₽ в расчёте');
-
-shortsCard.querySelector('[data-act="dec"]').click();
-  assert(shortsCard.querySelector('.qty__value').textContent === '2', 'клик «-» уменьшает количество до 2');
-  shortsCard.querySelector('[data-act="inc"]').click();
-  assert(shortsCard.querySelector('.qty__value').textContent === '3', 'клик «+» увеличивает количество до 3');
+  svcContent.querySelector('[data-svc-act="inc"]').click();
+  svcContent.querySelector('[data-svc-act="inc"]').click();
+  assert(svcContent.querySelector('.qty__value').textContent === '3', 'два клика «+» -> количество 3 (старт с 1)');
+  svcContent.querySelector('[data-svc-act="dec"]').click();
+  assert(svcContent.querySelector('.qty__value').textContent === '2', 'клик «-» уменьшает количество до 2');
+  svcContent.querySelector('[data-svc-act="inc"]').click();
+  assert(svcContent.querySelector('.qty__value').textContent === '3', 'клик «+» увеличивает количество до 3');
 
   console.log('4. Добавление в общую корзину');
-  shortsCard.querySelector('[data-act="add"]').click();
+  svcContent.querySelector('[data-svc-act="add"]').click();
   const badge = document.getElementById('cart-badge');
   assert(badge.hidden === false && badge.textContent === '3', 'бейдж корзины показывает 3');
-  assert(shortsCard.querySelector('.qty__value').textContent === '0', 'калькулятор сброшен после добавления');
   assert(document.getElementById('cart-drawer').hidden === true, 'корзина ещё не открыта');
+  // Живой расчёт отдела обновился.
+  const summary = document.querySelector('#panel-editing .calc__summary');
+  assert(summary.textContent.includes('Shorts × 3'), 'расчёт отдела показывает «Shorts × 3»');
+  assert(summary.textContent.replace(/\s/g, ' ').includes('1 500'),
+    'стоимость позиции 1 500 ₽ в расчёте');
 
-  /* Добавляем услугу программирования */
+  /* Добавляем услугу программирования через её же окно */
   document.getElementById('tab-programming').click();
   assert(document.getElementById('panel-programming').hidden === false, 'вкладка программирования открылась');
   assert(document.getElementById('panel-editing').hidden === true, 'панель монтажа скрылась');
-  const progCards = document.querySelectorAll('#panel-programming .service-card');
-  assert(progCards.length === 4, '4 карточки услуг программирования');
-  const siteCard = document.querySelector('#panel-programming [data-service-id="site"]');
-  siteCard.querySelector('[data-act="inc"]').click();
-  siteCard.querySelector('[data-act="add"]').click();
+  const progBtns = document.querySelectorAll('#panel-programming .service-btn');
+  assert(progBtns.length === 4, '4 кнопки услуг программирования');
+  const siteBtn = document.querySelector('#panel-programming [data-service-id="site"]');
+  siteBtn.click();
+  const svcContent2 = document.getElementById('service-modal-content');
+  svcContent2.querySelector('[data-svc-act="add"]').click();
   assert(badge.textContent === '4', 'бейдж обновился до 4 (позиции из разных отделов)');
   assert(window.localStorage.getItem('vtc_cart_v1').includes('"serviceId":"site"'),
     'корзина сохранена в localStorage');
@@ -192,6 +200,11 @@ shortsCard.querySelector('[data-act="dec"]').click();
 
   console.log('7. Портфолио и карточка клиента');
   document.getElementById('tab-portfolio').click();
+  assert(document.getElementById('panel-portfolio').textContent.includes('Наши клиенты. Нажмите на карточку'),
+    'текст под портфолио обновлён');
+  assert(!document.querySelector('.portfolio-total'), 'общая плашка количества работ в портфолио убрана');
+  assert(document.querySelector('.client-card__meta').textContent.includes('11 работ'),
+    'на карточке клиента снова отображается количество работ');
   const clientCard = document.querySelector('.client-card');
   assert(!!clientCard, 'карточка клиента отрендерена');
   const avatarImg = clientCard.querySelector('img');
@@ -200,16 +213,25 @@ shortsCard.querySelector('[data-act="dec"]').click();
     'для аватара используется заменяемая PNG-заглушка');
   assert(avatarImg.getAttribute('loading') === 'lazy', 'аватар загружается лениво');
 
-  window.SITE_DATA.portfolio[0].orders = 99;
   clientCard.click();
-clientCard.click();
   const modal = document.getElementById('client-modal');
   assert(modal.hidden === false, 'модальное окно клиента открылось');
   const content = document.getElementById('modal-content');
   assert(content.textContent.indexOf('HinaMouse') !== -1, 'имя клиента в окне');
-  assert(content.querySelectorAll('.work-card').length === 3, 'три выполненные работы (одна без предпросмотра)');
-  assert(content.textContent.indexOf('Общее количество работ: 3') !== -1,
-    'число заказов автоматически совпадает с числом выполненных работ');
+  assert(content.querySelectorAll('.work-card').length === 3, 'три работы (2 плейлиста + бот)');
+  // Количество работ клиента снова отображается (6 + 4 + 1 = 11).
+  assert(content.textContent.indexOf('Общее количество работ: 11') !== -1,
+    'количество работ клиента отображается снова');
+  // Рядом с названием плейлиста показываем число роликов.
+  const clipBadges = Array.from(content.querySelectorAll('.work-card__count')).map((el) => el.textContent);
+  assert(clipBadges.length === 2, 'рядом с двумя плейлистами показано количество роликов');
+  assert(clipBadges[0].includes('6 роликов'), 'у «Creepy Support» указано 6 роликов');
+  assert(clipBadges[1].includes('4 ролика'), 'у «Photomaly» указано 4 ролика');
+  // У бота (не видео) бейджа количества роликов нет.
+  const workTitles = Array.from(content.querySelectorAll('.work-card__head'));
+  const botHead = workTitles.find((h) => h.textContent.includes('ТГ-бот'));
+  assert(botHead && !botHead.querySelector('.work-card__count'),
+    'у работы-бота не отображается количество роликов');
   const workLink = content.querySelector('.work-card__title');
   assert(workLink.getAttribute('target') === '_blank' &&
     workLink.getAttribute('rel') === 'noopener noreferrer', 'внешние ссылки безопасны (rel=noopener)');
@@ -228,7 +250,15 @@ clientCard.click();
   document.getElementById('modal-close').click();
   assert(!modal.classList.contains('is-open'), 'модальное окно закрылось');
 
-  console.log('8. Разделы «Подробнее» и «Наши исполнители»');
+  // Клиент с одиночным видео: бейдж «1 ролик» не показывается.
+  document.querySelector('[data-client-id="aleriaVT"]').click();
+  const content2 = document.getElementById('modal-content');
+  assert(content2.querySelectorAll('.work-card').length === 1, 'у aleriaVT одна работа');
+  assert(content2.querySelectorAll('.work-card__count').length === 0,
+    'для одиночного видео бейдж количества роликов не отображается');
+  document.getElementById('modal-close').click();
+
+  console.log('8. Разделы «Подробнее», «Наши исполнители», «Акции», «Как заказать»');
   document.getElementById('tab-about').click();
   assert(document.getElementById('panel-about').textContent.indexOf(window.SITE_DATA.about.paragraphs[0]) !== -1,
     'описание сообщества отображается');
@@ -242,16 +272,51 @@ clientCard.click();
   assert(document.getElementById('panel-team').textContent.indexOf('В разработке') !== -1,
     'плашка «В разработке» в разделе исполнителей');
 
-  console.log('9. Футер и оформление заказа');
+  document.getElementById('tab-promo').click();
+  assert(document.getElementById('panel-promo').textContent.indexOf('Акции') !== -1,
+    'вкладка «Акции» отображается');
+
+  document.getElementById('tab-howto').click();
+  assert(document.getElementById('panel-howto').textContent.indexOf('самозанятый') !== -1,
+    'вкладка «Как заказать» содержит текст про самозанятого');
+  assert(document.getElementById('panel-howto').textContent.indexOf('Telegram-канале') !== -1,
+    'вкладка «Как заказать» упоминает оформление через Telegram');
+
+  console.log('9. Футер, документы, согласия и оформление заказа');
   assert(document.getElementById('footer-info').textContent.indexOf('Документы') !== -1,
-    'в футере подготовлено место под документы');
+    'в футере раздел «Документы»');
+  assert(document.getElementById('footer-info').textContent.indexOf('ФИО исполнителя') !== -1,
+    'в документах указано ФИО исполнителя');
+  assert(document.getElementById('footer-info').textContent.indexOf('ИНН') !== -1,
+    'в документах указан ИНН');
+  assert(document.getElementById('footer-info').textContent.indexOf('с 08:00 до 22:00') !== -1,
+    'указан режим ответа на обращения');
+  const docLinks = document.querySelectorAll('#footer-info .footer-docs__links a');
+  assert(docLinks.length === 2, 'две кнопки-ссылки на документы (оферта и политика)');
+  assert(document.getElementById('footer-madeby').textContent === 'made by Thas118',
+    'плашка made by Thas118 внизу сайта');
   assert(document.getElementById('footer-copy').textContent.indexOf('Vtube Community') !== -1, 'копирайт');
+
+  // Согласия по умолчанию выключены.
+  assert(document.getElementById('consent-pd').checked === false, 'согласие на обработку данных выключено по умолчанию');
+  assert(document.getElementById('consent-offer').checked === false, 'согласие с офертой выключено по умолчанию');
+  const consentLinks = document.querySelectorAll('#cart-footer .cart-consents a');
+  assert(consentLinks.length === 2, 'каждое согласие содержит ссылку на документ');
 
   window.Cart.add('editing', 'narrezka', 2);
   const message = window.Cart.buildOrderMessage();
+  assert(message.indexOf('Хочу оформить заказ в Vtube Community.') === 0,
+    'новый шаблон сообщения без «Здравствуйте!»');
   assert(message.indexOf('• Нарезка — 2 × 300 ₽') !== -1, 'сообщение заказа формируется автоматически');
   assert(window.Cart.buildShareUrl(message).indexOf(window.SITE_DATA.links.telegramShare + '?') === 0,
     'ссылка Telegram Share построена из настроек');
+
+  // Без обеих галочек отправка запрещена: оформление не должно открывать Telegram.
+  const beforeHref = window.location.href;
+  document.getElementById('checkout-button').click();
+  assert(window.location.href === beforeHref, 'без согласий заказ не отправляется');
+  assert(document.getElementById('toast').textContent.includes('согласия'),
+    'показана подсказка отметить оба согласия');
 
   const unexpected = jsdomErrors.filter((e) => !/Not implemented/.test(e));
   assert(unexpected.length === 0, 'нет неожиданных ошибок jsdom: ' + unexpected.join('; '));
