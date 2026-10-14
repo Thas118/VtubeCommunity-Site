@@ -567,7 +567,49 @@ button {
   font-size: 15.5px;
   line-height: 1.6;
   margin-bottom: 16px;
+  /* Длинные слова/ссылки не должны расширять карточку по горизонтали. */
+  overflow-wrap: break-word;
 }
+
+/* Заголовки разделов описания (полужирные). */
+.service-modal__section {
+  margin: 16px 0 8px;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.service-modal__section:first-child {
+  margin-top: 0;
+}
+
+/* Абзацы описания. */
+.service-modal__paragraph {
+  margin: 0 0 12px;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.service-modal__paragraph:last-child {
+  margin-bottom: 0;
+}
+
+/* Нумерованный список: каждый пункт с новой строки и с отступом. */
+.service-modal__list {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  color: var(--text);
+}
+
+.service-modal__list-item {
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+.service-modal__list-item:last-child {
+  margin-bottom: 0;
+}
+
 
 .service-modal__incart {
   display: inline-block;
@@ -581,11 +623,124 @@ button {
   font-weight: 600;
 }
 
+/* --- Доп. услуги в карточке услуги (переключатели вкл/выкл) --- */
+
+.service-modal__addons {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.service-modal__addons-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.service-modal__addons-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.addon-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+
+.addon-toggle:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+}
+
+/* Сам чекбокс скрыт визуально, но остаётся доступен для клавиатуры и скринридеров. */
+.addon-toggle__box {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.addon-toggle__track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  padding: 3px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.addon-toggle__thumb {
+  display: block;
+  width: 14px;
+  height: 14px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+.addon-toggle.is-on .addon-toggle__track {
+  background: var(--gradient);
+  border-color: transparent;
+}
+
+.addon-toggle.is-on .addon-toggle__thumb {
+  background: #fff;
+  transform: translateX(18px);
+}
+
+/* Фокус с клавиатуры — видимая обводка трека. */
+.addon-toggle__box:focus-visible + .addon-toggle__track {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+
+.addon-toggle__label {
+  flex: 1 1 auto;
+  font-size: 14.5px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.addon-toggle__price {
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-2);
+}
+
 .service-modal__controls {
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
+}
+
+/* Живой итог выбранной услуги с доп. услугами. */
+.service-modal__total {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
 }
 
 /* --- Счётчик количества --- */
@@ -999,6 +1154,42 @@ button {
 .cart-item__unit {
   font-size: 15px;
   color: var(--text-muted);
+}
+
+/* Выбранные доп. услуги под названием услуги в корзине. */
+.cart-item__addons {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cart-item__addon {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.cart-item__addon::before {
+  content: '+ ';
+  color: var(--accent-2);
+}
+
+.cart-item__addon-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.cart-item__addon-price {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .cart-item__controls {

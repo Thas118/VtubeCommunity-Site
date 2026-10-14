@@ -15,9 +15,13 @@ var Calculator = (function () {
     });
   }
 
-  /** Подпись цены: «от N ₽» для отделов со стартовой ценой, иначе «N ₽». */
-  function priceLabel(dept, price) {
-    return (dept.priceFrom ? 'от ' : '') + formatPrice(price);
+  /** Подпись цены услуги. Учитывает «по договорённости», диапазон и «от N ₽». */
+  function priceLabel(dept, service) {
+    if (service.priceNegotiable) return 'цена по договорённости';
+    if (typeof service.priceMax === 'number' && service.priceMax > service.price) {
+      return 'от ' + formatPrice(service.price) + ' до ' + formatPrice(service.priceMax);
+    }
+    return (dept.priceFrom ? 'от ' : '') + formatPrice(service.price);
   }
 
   /** Итог по одному отделу на основе общей корзины. */
@@ -65,7 +69,7 @@ var Calculator = (function () {
       btn.setAttribute('data-service-id', svc.id);
 
       btn.appendChild(createElement('span', 'service-btn__name', svc.name));
-      btn.appendChild(createElement('span', 'service-btn__price', priceLabel(dept, svc.price)));
+      btn.appendChild(createElement('span', 'service-btn__price', priceLabel(dept, svc)));
 
       btn.addEventListener('click', function () {
         if (typeof openServiceModal === 'function') {

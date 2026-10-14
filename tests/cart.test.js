@@ -108,18 +108,99 @@ console.log('3. Сообщение для Telegram');
 
   // Данные заказчика добавляются в сообщение.
   const withDetails = vm.runInContext(
-    "Cart.buildOrderMessage({ name: 'Иван', contact: '@ivan', viewers: '10к', botHosting: true })",
+    "Cart.buildOrderMessage({ name: 'Иван', contact: '@ivan' })",
     sandbox);
   assert(withDetails.includes('Имя: Иван'), 'имя заказчика попадает в сообщение');
   assert(withDetails.includes('Контакты: @ivan'), 'контакты заказчика попадают в сообщение');
-  assert(withDetails.includes('Данные зрителей: 10к'), 'данные зрителей попадают в сообщение');
-  assert(withDetails.includes('Бот размещается на хостинге исполнителя: да'),
-    'информация о размещении бота попадает в сообщение');
+  assert(!withDetails.includes('Данные зрителей'), 'поля «Данные зрителей» больше нет в сообщении');
+  assert(!withDetails.includes('Бот размещается'), 'упоминания хостинга бота больше нет в сообщении');
   assert(!withDetails.includes('Здравствуйте'), 'в новом шаблоне нет приветствия');
+
+  // Согласия попадают в сообщение только если отмечены.
+  const noConsents = vm.runInContext("Cart.buildOrderMessage({})", sandbox);
+  assert(!noConsents.includes('Я согласен'), 'без согласий строки согласия не добавляются');
+  const withConsents = vm.runInContext(
+    "Cart.buildOrderMessage({ consentPd: true, consentOffer: true })",
+    sandbox);
+  assert(withConsents.includes('— Я согласен на обработку персональных данных'),
+    'согласие на обработку ПД попадает в сообщение');
+  assert(withConsents.includes('— Я согласен с офертой'),
+    'согласие с офертой попадает в сообщение');
 
   const shareUrl = vm.runInContext('Cart.buildShareUrl(Cart.buildOrderMessage())', sandbox);
   assert(shareUrl.startsWith(sandbox.SITE_DATA.links.telegramShare + '?'), 'ссылка Telegram Share построена');
   assert(shareUrl.includes('text='), 'текст сообщения закодирован в ссылке');
+}
+
+console.log('3b. Доп. услуги увеличивают стоимость и попадают в заказ');
+{
+  // Собственное окружение с услугой, у которой есть доп. услуги.
+  const storage = { data: {} };
+  const sandbox = {
+    console,
+    localStorage: {
+      getItem: (k) => (Object.prototype.hasOwnProperty.call(storage.data, k) ? storage.data[k] : null),
+      setItem: (k, v) => { storage.data[k] = String(v); },
+      removeItem: (k) => { delete storage.data[k]; }
+    },
+    document: { getElementById: () => null },
+    navigator: {},
+    window: null
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  ['js/utils.js', 'js/data.js'].forEach((file) => {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), sandbox, { filename: file });
+  });
+  sandbox.SITE_DATA.departments.find((dept) => dept.id === 'programming').services = [
+    {
+      id: 'tgbp', name: 'Бот', description: '', price: 3000,
+      addons: [
+        { id: 'promo', name: 'Промокоды', price: 50 },
+        { id: 'menu', name: 'Удобное меню с кнопками настроек', price: 500 }
+      ]
+    }
+  ];
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/cart.js'), 'utf8'), sandbox, { filename: 'js/cart.js' });
+
+  // tgbp: база 3000₽, допы promo 50₽ и menu 500₽.
+  vm.runInContext("Cart.add('programming', 'tgbp', 2, ['promo', 'menu'])", sandbox);
+  // Итог = (3000 + 50 + 500) × 2 = 7100.
+  assert(vm.runInContext('Cart.getTotal()', sandbox) === 7100,
+    'итог учитывает доп. услуги × количество: (3000+50+500)×2 = 7100');
+  const item = vm.runInContext("Cart.getItems().find(i => i.serviceId === 'tgbp')", sandbox);
+  assert(item.addons.length === 2, 'в позиции сохранены 2 выбранные доп. услуги');
+  assert(item.unitPrice === 3550, 'цена за единицу = база + допы = 3550');
+  assert(item.lineTotal === 7100, 'итог по позиции = цена за единицу × количество');
+
+  // Повторное добавление суммирует количество и объединяет допы без дублей.
+  vm.runInContext("Cart.add('programming', 'tgbp', 1, ['promo'])", sandbox);
+  assert(vm.runInContext("Cart.getItems().find(i => i.serviceId === 'tgbp').qty", sandbox) === 3,
+    'повторное добавление суммирует количество');
+  assert(vm.runInContext("Cart.getItems().find(i => i.serviceId === 'tgbp').addons.length", sandbox) === 2,
+    'доп. услуги не дублируются при повторном добавлении');
+
+  // setAddons заменяет набор допов.
+  vm.runInContext("Cart.setAddons('programming', 'tgbp', [])", sandbox);
+  assert(vm.runInContext('Cart.getTotal()', sandbox) === 9000,
+    'без допов итог = 3000 × 3 = 9000');
+
+  // Сообщение перечисляет выбранные допы.
+  vm.runInContext("Cart.setAddons('programming', 'tgbp', ['menu'])", sandbox);
+  const msg = vm.runInContext('Cart.buildOrderMessage()', sandbox);
+  assert(msg.includes('Удобное меню с кнопками настроек'), 'выбранная доп. услуга указана в сообщении');
+
+  // Индивидуальный заказ «по договорённости» не влияет на итог.
+  // На этот момент итог = (3000 + 500) × 3 = 10500 (включён доп «menu»).
+  sandbox.SITE_DATA.departments.find((dept) => dept.id === 'programming').services.push(
+    { id: 'ind', name: 'Индивидуальный', description: '', price: 0, priceNegotiable: true }
+  );
+  vm.runInContext("Cart.add('programming', 'ind', 1)", sandbox);
+  assert(vm.runInContext('Cart.getTotal()', sandbox) === 10500,
+    'услуга «по договорённости» не увеличивает итог');
+  const msg2 = vm.runInContext('Cart.buildOrderMessage()', sandbox);
+  assert(msg2.includes('цена по договорённости'), 'услуга «по договорённости» помечена в сообщении');
 }
 
 console.log('4. Сохранение корзины (симуляция перезагрузки страницы)');

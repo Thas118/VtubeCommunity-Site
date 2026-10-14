@@ -354,7 +354,26 @@ function renderCartItem(item) {
   var main = createElement('div', 'cart-item__main');
   var info = createElement('div', 'cart-item__info');
   info.appendChild(createElement('span', 'cart-item__name', item.name));
-  info.appendChild(createElement('span', 'cart-item__unit', formatPrice(item.price) + ' за единицу'));
+  if (item.negotiable) {
+    info.appendChild(createElement('span', 'cart-item__unit', 'цена по договорённости'));
+  } else {
+    info.appendChild(createElement('span', 'cart-item__unit', formatPrice(item.unitPrice) + ' за единицу'));
+  }
+
+  // Выбранные доп. услуги — подпунктами под услугой.
+  if (item.addons && item.addons.length) {
+    var addonsList = createElement('ul', 'cart-item__addons');
+    item.addons.forEach(function (addon) {
+      var li = createElement('li', 'cart-item__addon');
+      li.appendChild(createElement('span', 'cart-item__addon-name', addon.name));
+      li.appendChild(createElement('span', 'cart-item__addon-price',
+        (typeof addon.multiplier === 'number')
+          ? '×' + addon.multiplier
+          : '+' + formatPrice(addon.price)));
+      addonsList.appendChild(li);
+    });
+    info.appendChild(addonsList);
+  }
 
   var controls = createElement('div', 'cart-item__controls');
 
@@ -424,18 +443,21 @@ function renderCart() {
   updateOrderPreview();
 }
 
-/** Читает данные заказчика из полей оформления в шторке корзины. */
+/** Читает данные заказчика и согласия из полей оформления в шторке корзины. */
 function readOrderDetails() {
   function val(id) {
     var el = document.getElementById(id);
     return el ? String(el.value || '').trim() : '';
   }
-  var botHostingEl = document.getElementById('order-bot-hosting');
+  function checked(id) {
+    var el = document.getElementById(id);
+    return !!(el && el.checked);
+  }
   return {
     name: val('order-name'),
     contact: val('order-contact'),
-    viewers: val('order-viewers'),
-    botHosting: !!(botHostingEl && botHostingEl.checked)
+    consentPd: checked('consent-pd'),
+    consentOffer: checked('consent-offer')
   };
 }
 
@@ -727,6 +749,78 @@ var serviceModalContent = null;
 var serviceModalCloseBtn = null;
 var serviceModalOpen = false;
 
+/**
+ * Форматирует многострочное описание услуги в структурированные блоки:
+ *  - строки-заголовки (заканчиваются на «:») -> полужирный подзаголовок <h4>;
+ *  - строки вида «1. Текст» / «2) Текст» -> пункты нумерованного списка <ol>/<li>
+ *    (ведущий номер убираем: нумерацию формирует тег <ol>, каждый пункт с новой строки);
+ *  - остальной текст -> абзацы <p> (несколько строк подряд объединяются в один абзац).
+ * Весь текст вставляется через textContent — содержимое не меняется и безопасно.
+ */
+function renderServiceDescription(container, text) {
+  var raw = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+  var lines = raw.split('\n');
+
+  var list = null;       // текущий открытый <ol>
+  var paragraph = null;  // текущий накапливаемый <p>
+
+  function flushParagraph() {
+    if (paragraph) {
+      container.appendChild(paragraph);
+      paragraph = null;
+    }
+  }
+
+  function flushList() {
+    if (list) {
+      container.appendChild(list);
+      list = null;
+    }
+  }
+
+  lines.forEach(function (rawLine) {
+    var line = rawLine.trim();
+
+    // Пустая строка — разделитель логических блоков.
+    if (!line) {
+      flushParagraph();
+      flushList();
+      return;
+    }
+
+    // Пункт нумерованного списка: «1. Текст», «2) Текст», «1.Текст».
+    var listMatch = line.match(/^(\d+)\s*[.)]\s*(.+)$/);
+    if (listMatch) {
+      flushParagraph();
+      if (!list) {
+        list = createElement('ol', 'service-modal__list');
+      }
+      list.appendChild(createElement('li', 'service-modal__list-item', listMatch[2]));
+      return;
+    }
+
+    // Заголовок раздела: короткая строка, оканчивающаяся на двоеточие.
+    if (line.length <= 60 && /:\s*$/.test(line)) {
+      flushParagraph();
+      flushList();
+      container.appendChild(createElement('h4', 'service-modal__section', line));
+      return;
+    }
+
+    // Обычный текст абзаца (несколько строк подряд объединяем через пробел).
+    flushList();
+    if (!paragraph) {
+      paragraph = createElement('p', 'service-modal__paragraph');
+    }
+    paragraph.appendChild(
+      document.createTextNode((paragraph.textContent ? ' ' : '') + line)
+    );
+  });
+
+  flushParagraph();
+  flushList();
+}
+
 /** Отрисовывает содержимое окна услуги: описание, цена, количество, «В корзину». */
 function buildServiceContent(dept, service) {
   clearNode(serviceModalContent);
@@ -738,12 +832,17 @@ function buildServiceContent(dept, service) {
   nameEl.id = 'service-modal-title';
   head.appendChild(nameEl);
   var priceTag = createElement('span', 'service-modal__price',
-    (dept.priceFrom ? 'от ' : '') + formatPrice(service.price) +
-    (service.priceFixed ? ' · фиксированная цена' : ' · за единицу'));
+    service.priceNegotiable
+      ? 'цена по договорённости'
+      : (dept.priceFrom ? 'от ' : '') + formatPrice(service.price) +
+        (service.priceFixed ? ' · фиксированная цена' : ' · за единицу'));
+  priceTag.setAttribute('data-role', 'price');
   head.appendChild(priceTag);
   wrap.appendChild(head);
 
-  wrap.appendChild(createElement('p', 'service-modal__desc', service.description));
+  var descWrap = createElement('div', 'service-modal__desc');
+  renderServiceDescription(descWrap, service.description);
+  wrap.appendChild(descWrap);
 
   // Текущее количество в общей корзине (если услугу уже добавили).
   var inCart = 0;
@@ -754,6 +853,46 @@ function buildServiceContent(dept, service) {
     var inCartNote = createElement('p', 'service-modal__incart');
     inCartNote.textContent = 'Уже в корзине: ' + inCart + ' шт.';
     wrap.appendChild(inCartNote);
+  }
+
+  /* ----- Доп. услуги (переключатели вкл/выкл) ----- */
+  var addons = Array.isArray(service.addons) ? service.addons : [];
+  var selectedAddons = {}; // id -> true/false
+
+  if (addons.length) {
+    var addonsBlock = createElement('div', 'service-modal__addons');
+    addonsBlock.appendChild(createElement('h4', 'service-modal__addons-title', 'Дополнительные услуги'));
+
+    var addonsList = createElement('div', 'service-modal__addons-list');
+
+    addons.forEach(function (addon) {
+      var toggle = createElement('label', 'addon-toggle');
+      toggle.setAttribute('data-addon-id', addon.id);
+
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'addon-toggle__box';
+      box.setAttribute('data-svc-act', 'toggle-addon');
+      box.setAttribute('aria-label', addon.name);
+
+      var track = createElement('span', 'addon-toggle__track');
+      track.appendChild(createElement('span', 'addon-toggle__thumb'));
+
+      var label = createElement('span', 'addon-toggle__label', addon.name);
+      var price = createElement('span', 'addon-toggle__price',
+        (typeof addon.multiplier === 'number')
+          ? '×' + addon.multiplier
+          : '+' + formatPrice(addon.price));
+
+      toggle.appendChild(box);
+      toggle.appendChild(track);
+      toggle.appendChild(label);
+      toggle.appendChild(price);
+      addonsList.appendChild(toggle);
+    });
+
+    addonsBlock.appendChild(addonsList);
+    wrap.appendChild(addonsBlock);
   }
 
   var controls = createElement('div', 'service-modal__controls');
@@ -782,11 +921,57 @@ function buildServiceContent(dept, service) {
   addBtn.type = 'button';
   addBtn.setAttribute('data-svc-act', 'add');
 
+  var liveTotal = createElement('span', 'service-modal__total');
+  liveTotal.setAttribute('data-role', 'total');
+
   controls.appendChild(qtyBox);
+  controls.appendChild(liveTotal);
   controls.appendChild(addBtn);
   wrap.appendChild(controls);
 
   var state = { qty: 1 };
+
+  /** Сумма выбранных фикс. доп. услуг (множители не входят). */
+  function selectedAddonsTotal() {
+    return addons.reduce(function (sum, addon) {
+      if (!selectedAddons[addon.id] || typeof addon.multiplier === 'number') return sum;
+      return sum + Number(addon.price || 0);
+    }, 0);
+  }
+
+  /** Произведение выбранных множителей доп. услуг (по умолчанию 1). */
+  function selectedMultiplier() {
+    return addons.reduce(function (mul, addon) {
+      if (!selectedAddons[addon.id]) return mul;
+      var m = Number(addon.multiplier);
+      return (isFinite(m) && m > 0) ? mul * m : mul;
+    }, 1);
+  }
+
+  /** Обновляет живой итог рядом с кнопкой. */
+  function refreshTotal() {
+    if (service.priceNegotiable) {
+      liveTotal.textContent = 'цена по договорённости';
+      return;
+    }
+    var unit = (Number(service.price || 0) + selectedAddonsTotal()) * selectedMultiplier();
+    liveTotal.textContent = state.qty > 1
+      ? formatPrice(unit) + ' × ' + state.qty + ' = ' + formatPrice(unit * state.qty)
+      : formatPrice(unit);
+  }
+
+  refreshTotal();
+
+  wrap.addEventListener('change', function (event) {
+    var box = event.target.closest('input[data-svc-act="toggle-addon"]');
+    if (!box) return;
+    var toggle = box.closest('.addon-toggle');
+    var id = toggle ? toggle.getAttribute('data-addon-id') : null;
+    if (!id) return;
+    selectedAddons[id] = box.checked;
+    if (toggle) toggle.classList.toggle('is-on', box.checked);
+    refreshTotal();
+  });
 
   controls.addEventListener('click', function (event) {
     var btn = event.target.closest('button[data-svc-act]');
@@ -798,7 +983,10 @@ function buildServiceContent(dept, service) {
     } else if (act === 'dec') {
       state.qty = Math.max(1, state.qty - 1);
     } else if (act === 'add') {
-      if (Cart.add(dept.id, service.id, state.qty)) {
+      var chosenIds = addons
+        .filter(function (addon) { return selectedAddons[addon.id]; })
+        .map(function (addon) { return addon.id; });
+      if (Cart.add(dept.id, service.id, state.qty, chosenIds)) {
         showToast('«' + service.name + '» — добавлено в корзину');
         state.qty = 1;
         buildServiceContent(dept, service);
@@ -806,6 +994,7 @@ function buildServiceContent(dept, service) {
       }
     }
     qtyValue.textContent = String(state.qty);
+    refreshTotal();
   });
 
   serviceModalContent.appendChild(wrap);
@@ -1013,12 +1202,17 @@ function initApp() {
   }
 
   /* Поля оформления: живое обновление предпросмотра сообщения */
-  ['order-name', 'order-contact', 'order-viewers', 'order-bot-hosting'].forEach(function (id) {
+  ['order-name', 'order-contact'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', updateOrderPreview);
       el.addEventListener('change', updateOrderPreview);
     }
+  });
+  // Согласия влияют на текст сообщения — обновляем предпросмотр при клике.
+  ['consent-pd', 'consent-offer'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateOrderPreview);
   });
 
   /* Общий фон закрывает верхнее открытое окно */

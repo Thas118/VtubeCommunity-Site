@@ -29,6 +29,64 @@ var Cart = (function () {
     return null;
   }
 
+  /* ---------- Доп. услуги ---------- */
+
+  /** Список доступных доп. услуг для услуги (всегда массив). */
+  function getServiceAddons(service) {
+    return (service && Array.isArray(service.addons)) ? service.addons : [];
+  }
+
+  /** Оставляет только валидные и уникальные id доп. услуг для данной услуги. */
+  function normalizeAddonIds(service, addonIds) {
+    if (!Array.isArray(addonIds)) return [];
+    var valid = getServiceAddons(service).map(function (a) { return a.id; });
+    var out = [];
+    addonIds.forEach(function (id) {
+      if (valid.indexOf(id) !== -1 && out.indexOf(id) === -1) out.push(id);
+    });
+    return out;
+  }
+
+  /** Объединяет два набора id доп. услуг без дублей. */
+  function unionAddonIds(a, b) {
+    var out = (Array.isArray(a) ? a : []).slice();
+    (Array.isArray(b) ? b : []).forEach(function (id) {
+      if (out.indexOf(id) === -1) out.push(id);
+    });
+    return out;
+  }
+
+  /** Доп. услуги позиции с данными (id, name, price) — только валидные. */
+  function resolveAddons(service, addonIds) {
+    var ids = Array.isArray(addonIds) ? addonIds : [];
+    return getServiceAddons(service).filter(function (a) {
+      return ids.indexOf(a.id) !== -1;
+    });
+  }
+
+  /** Базовая цена услуги числом. */
+  function basePrice(service) {
+    var p = service ? Number(service.price) : 0;
+    return isFinite(p) ? p : 0;
+  }
+
+  /** Сумма фиксированных цен выбранных доп. услуг (допы-множители не входят). */
+  function addonsTotal(service, addonIds) {
+    return resolveAddons(service, addonIds).reduce(function (sum, a) {
+      if (typeof a.multiplier === 'number') return sum;
+      var p = Number(a.price);
+      return sum + (isFinite(p) ? p : 0);
+    }, 0);
+  }
+
+  /** Произведение множителей выбранных доп. услуг (по умолчанию 1). */
+  function addonsMultiplier(service, addonIds) {
+    return resolveAddons(service, addonIds).reduce(function (mul, a) {
+      var m = Number(a.multiplier);
+      return (isFinite(m) && m > 0) ? mul * m : mul;
+    }, 1);
+  }
+
   function findItemIndex(deptId, serviceId) {
     for (var i = 0; i < items.length; i++) {
       if (items[i].deptId === deptId && items[i].serviceId === serviceId) return i;
@@ -55,9 +113,15 @@ var Cart = (function () {
         var qty = toPositiveInt(entry.qty, 0);
         if (qty < 1) return;
         // Отфильтровываем позиции, которых больше нет в прайсе.
-        if (!getService(entry.deptId, entry.serviceId)) return;
+        var svc = getService(entry.deptId, entry.serviceId);
+        if (!svc) return;
         if (findItemIndex(entry.deptId, entry.serviceId) !== -1) return;
-        items.push({ deptId: String(entry.deptId), serviceId: String(entry.serviceId), qty: qty });
+        items.push({
+          deptId: String(entry.deptId),
+          serviceId: String(entry.serviceId),
+          qty: qty,
+          addonIds: normalizeAddonIds(svc, entry.addonIds)
+        });
       });
     } catch (e) {
       items = [];
@@ -85,17 +149,30 @@ var Cart = (function () {
 
   /* ---------- Операции ---------- */
 
-  /** Добавить услугу (qty суммируется с уже добавленной). */
-  function add(deptId, serviceId, qty) {
+  /** Добавить услугу (qty суммируется с уже добавленной; выбранные допы объединяются). */
+  function add(deptId, serviceId, qty, addonIds) {
     var amount = toPositiveInt(qty, 0);
     if (amount < 1) return false;
-    if (!getService(deptId, serviceId)) return false;
+    var service = getService(deptId, serviceId);
+    if (!service) return false;
+    var chosen = normalizeAddonIds(service, addonIds);
     var index = findItemIndex(deptId, serviceId);
     if (index === -1) {
-      items.push({ deptId: deptId, serviceId: serviceId, qty: amount });
+      items.push({ deptId: deptId, serviceId: serviceId, qty: amount, addonIds: chosen });
     } else {
       items[index].qty += amount;
+      items[index].addonIds = unionAddonIds(items[index].addonIds, chosen);
     }
+    commit();
+    return true;
+  }
+
+  /** Заменить набор доп. услуг у позиции в корзине. */
+  function setAddons(deptId, serviceId, addonIds) {
+    var index = findItemIndex(deptId, serviceId);
+    if (index === -1) return false;
+    var service = getService(deptId, serviceId);
+    items[index].addonIds = normalizeAddonIds(service, addonIds);
     commit();
     return true;
   }
@@ -136,20 +213,34 @@ var Cart = (function () {
 
   /* ---------- Выборки ---------- */
 
-  /** Позиции с данными услуги для отображения: deptTitle, service, qty, lineTotal. */
+  /** Позиции с данными услуги для отображения: deptTitle, service, qty, addons, lineTotal. */
   function getItems() {
     return items.map(function (entry) {
       var dept = getDepartment(entry.deptId);
       var service = getService(entry.deptId, entry.serviceId);
+      var addons = resolveAddons(service, entry.addonIds);
+      var extra = addonsTotal(service, entry.addonIds);
+      var mult = addonsMultiplier(service, entry.addonIds);
+      var base = basePrice(service);
+      var negotiable = !!(service && service.priceNegotiable);
+      // Цена за единицу = база + сумма фикс. доп. услуг;
+      // итог позиции = цена за единицу × количество × множитель доп. услуг.
+      var unitPrice = negotiable ? 0 : base + extra;
       return {
         deptId: entry.deptId,
         deptTitle: dept ? dept.title : '',
         serviceId: entry.serviceId,
         name: service.name,
         description: service.description,
-        price: service.price,
+        price: base,
+        priceFixed: !!(service && service.priceFixed),
+        negotiable: negotiable,
+        addons: addons,
+        addonsTotal: extra,
+        multiplier: mult,
+        unitPrice: unitPrice,
         qty: entry.qty,
-        lineTotal: service.price * entry.qty
+        lineTotal: unitPrice * entry.qty * mult
       };
     });
   }
@@ -162,7 +253,11 @@ var Cart = (function () {
   function getTotal() {
     return items.reduce(function (sum, entry) {
       var service = getService(entry.deptId, entry.serviceId);
-      return sum + (service ? service.price * entry.qty : 0);
+      if (!service) return sum;
+      var negotiable = !!service.priceNegotiable;
+      var unit = negotiable ? 0 : basePrice(service) + addonsTotal(service, entry.addonIds);
+      var mult = addonsMultiplier(service, entry.addonIds);
+      return sum + unit * entry.qty * mult;
     }, 0);
   }
 
@@ -178,8 +273,8 @@ var Cart = (function () {
   /* ---------- Оформление заказа ---------- */
 
   /**
-   * Текст сообщения для Telegram по формату из ТЗ.
-   * @param {Object} [details] — данные заказчика (имя, контакты, зрители, хостинг бота).
+   * Текст сообщения для Telegram.
+   * @param {Object} [details] — данные заказчика (имя, контакты) и согласия (consentPd, consentOffer).
    * @returns {string|null} null при пустой корзине.
    */
   function buildOrderMessage(details) {
@@ -190,22 +285,41 @@ var Cart = (function () {
       'Услуги:'
     ];
     getItems().forEach(function (item) {
-      lines.push('• ' + item.name + ' — ' + item.qty + ' × ' + formatPrice(item.price));
+      if (item.negotiable) {
+        lines.push('• ' + item.name + ' — ' + item.qty + ' шт. (цена по договорённости)');
+      } else {
+        lines.push('• ' + item.name + ' — ' + item.qty + ' × ' + formatPrice(item.unitPrice));
+      }
+      // Выбранные доп. услуги — подпунктами под услугой.
+      item.addons.forEach(function (addon) {
+        if (typeof addon.multiplier === 'number') {
+          lines.push('    + ' + addon.name + ' — ×' + addon.multiplier);
+        } else {
+          lines.push('    + ' + addon.name + ' — ' + formatPrice(addon.price));
+        }
+      });
     });
     lines.push('');
     lines.push('Итого: ' + formatPrice(getTotal()));
 
-    // Дополнительные данные заказчика (по ТЗ). Добавляются только заполненные поля.
+    // Дополнительные данные заказчика. Добавляются только заполненные поля.
     var extra = [];
     if (details) {
       if (details.name) extra.push('Имя: ' + details.name);
       if (details.contact) extra.push('Контакты: ' + details.contact);
-      if (details.viewers) extra.push('Данные зрителей: ' + details.viewers);
-      if (details.botHosting) extra.push('Бот размещается на хостинге исполнителя: да');
     }
     if (extra.length) {
       lines.push('');
       lines.push(extra.join('\n'));
+    }
+
+    // Согласия — попадают в сообщение только если отмечены.
+    var consents = [];
+    if (details && details.consentPd) consents.push('- Я согласен на обработку персональных данных');
+    if (details && details.consentOffer) consents.push('- Я согласен с офертой');
+    if (consents.length) {
+      lines.push('');
+      lines.push(consents.join('\n'));
     }
     return lines.join('\n');
   }
@@ -225,6 +339,7 @@ var Cart = (function () {
   return {
     add: add,
     setQty: setQty,
+    setAddons: setAddons,
     changeQty: changeQty,
     remove: remove,
     clear: clear,
