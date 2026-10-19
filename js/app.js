@@ -532,14 +532,11 @@ function checkout() {
   });
 
   var url = Cart.buildShareUrl(message);
-  var opened = null;
   try {
-    opened = window.open(url, '_blank', 'noopener');
+    window.open(url, '_blank', 'noopener');
   } catch (e) {
-    opened = null;
-  }
-  if (!opened) {
-    window.location.href = url;
+    // Если браузер заблокировал открытие новой вкладки,
+    // текущая страница сайта не уходит — сообщение уже скопировано в буфер обмена.
   }
 }
 
