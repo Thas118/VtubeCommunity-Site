@@ -205,12 +205,55 @@ function createPromoPanel() {
   var data = SITE_DATA.promo;
   var section = createElement('section', 'panel');
   section.appendChild(createElement('h2', 'panel__title', data.title));
+  if (data.lead) {
+    section.appendChild(createElement('p', 'panel__lead', data.lead));
+  }
 
-  var plate = createElement('div', 'placeholder-card');
-  plate.appendChild(createElement('span', 'placeholder-card__badge', data.badge));
-  plate.appendChild(createElement('p', 'placeholder-card__text', data.text));
+  var tiersWrap = createElement('div', 'promo-tiers');
+  (data.tiers || []).forEach(function (tier, index) {
+    var card = createElement('article', 'promo-tier card');
 
-  section.appendChild(plate);
+    var head = createElement('div', 'promo-tier__head');
+    head.appendChild(createElement('span', 'promo-tier__rank', String(index + 1)));
+    head.appendChild(createElement('h3', 'promo-tier__name', tier.name));
+    card.appendChild(head);
+
+    // Блок «Привилегии».
+    var privGroup = createElement('div', 'promo-tier__group');
+    privGroup.appendChild(createElement('h4', 'promo-tier__label', 'Привилегии'));
+    var privList = createElement('ul', 'promo-tier__list');
+    (tier.privileges || []).forEach(function (text) {
+      privList.appendChild(createElement('li', 'promo-tier__item', text));
+    });
+    privGroup.appendChild(privList);
+    card.appendChild(privGroup);
+
+    // Блок «Условия».
+    var condGroup = createElement('div', 'promo-tier__group');
+    condGroup.appendChild(createElement('h4', 'promo-tier__label', 'Условия'));
+    var condList = createElement('ul', 'promo-tier__list promo-tier__list--conditions');
+    (tier.conditions || []).forEach(function (text) {
+      condList.appendChild(createElement('li', 'promo-tier__item', text));
+    });
+    condGroup.appendChild(condList);
+    card.appendChild(condGroup);
+
+    tiersWrap.appendChild(card);
+  });
+  section.appendChild(tiersWrap);
+
+  // Общие условия программы.
+  if (Array.isArray(data.rules) && data.rules.length) {
+    var rulesCard = createElement('div', 'promo-rules card');
+    rulesCard.appendChild(createElement('h3', 'promo-rules__title', data.rulesTitle || 'Общие условия'));
+    var rulesList = createElement('ul', 'promo-rules__list');
+    data.rules.forEach(function (text) {
+      rulesList.appendChild(createElement('li', 'promo-rules__item', text));
+    });
+    rulesCard.appendChild(rulesList);
+    section.appendChild(rulesCard);
+  }
+
   return section;
 }
 
@@ -366,10 +409,7 @@ function renderCartItem(item) {
     item.addons.forEach(function (addon) {
       var li = createElement('li', 'cart-item__addon');
       li.appendChild(createElement('span', 'cart-item__addon-name', addon.name));
-      li.appendChild(createElement('span', 'cart-item__addon-price',
-        (typeof addon.multiplier === 'number')
-          ? '×' + addon.multiplier
-          : '+' + formatPrice(addon.price)));
+      li.appendChild(createElement('span', 'cart-item__addon-price', formatAddonPrice(addon)));
       addonsList.appendChild(li);
     });
     info.appendChild(addonsList);
@@ -844,16 +884,11 @@ function buildServiceContent(dept, service) {
   renderServiceDescription(descWrap, service.description);
   wrap.appendChild(descWrap);
 
-  // Текущее количество в общей корзине (если услугу уже добавили).
+  // Текущее количество в общей корзине (плашку выводим в блоке покупки внизу).
   var inCart = 0;
   Cart.getItems().forEach(function (item) {
     if (item.deptId === dept.id && item.serviceId === service.id) inCart = item.qty;
   });
-  if (inCart > 0) {
-    var inCartNote = createElement('p', 'service-modal__incart');
-    inCartNote.textContent = 'Уже в корзине: ' + inCart + ' шт.';
-    wrap.appendChild(inCartNote);
-  }
 
   /* ----- Доп. услуги (переключатели вкл/выкл) ----- */
   var addons = Array.isArray(service.addons) ? service.addons : [];
@@ -879,10 +914,7 @@ function buildServiceContent(dept, service) {
       track.appendChild(createElement('span', 'addon-toggle__thumb'));
 
       var label = createElement('span', 'addon-toggle__label', addon.name);
-      var price = createElement('span', 'addon-toggle__price',
-        (typeof addon.multiplier === 'number')
-          ? '×' + addon.multiplier
-          : '+' + formatPrice(addon.price));
+      var price = createElement('span', 'addon-toggle__price', formatAddonPrice(addon));
 
       toggle.appendChild(box);
       toggle.appendChild(track);
@@ -894,6 +926,87 @@ function buildServiceContent(dept, service) {
     addonsBlock.appendChild(addonsList);
     wrap.appendChild(addonsBlock);
   }
+
+  /* ----- Бесплатные услуги (список с выбором, без тарификации) ----- */
+  var freeServices = Array.isArray(service.freeServices) ? service.freeServices : [];
+  var freeLimit = Math.max(0, Number(service.freeServicesLimit) || 0);
+  var selectedFree = {}; // id -> true/false
+  var freeList = null;
+  var freeCounter = null;
+
+  if (freeServices.length) {
+    var freeBlock = createElement('div', 'service-modal__free');
+    freeBlock.appendChild(createElement('h4', 'service-modal__free-title', 'Бесплатные услуги'));
+
+    var freeHint = createElement('p', 'service-modal__free-hint');
+    freeHint.appendChild(document.createTextNode(
+      freeLimit
+        ? 'Вы можете бесплатно выбрать до ' + freeLimit + ' услуг. '
+        : 'Эти услуги оказываются бесплатно. '
+    ));
+    freeCounter = createElement('span', 'service-modal__free-counter', '');
+    freeCounter.setAttribute('data-role', 'free-counter');
+    freeHint.appendChild(freeCounter);
+    if (service.freeServicesPriceUrl) {
+      freeHint.appendChild(document.createTextNode(' '));
+      var freePriceLink = createElement('a', 'service-modal__free-link', 'Прайс-лист');
+      freePriceLink.href = service.freeServicesPriceUrl;
+      freePriceLink.target = '_blank';
+      freePriceLink.rel = 'noopener noreferrer';
+      freeHint.appendChild(freePriceLink);
+    }
+    freeBlock.appendChild(freeHint);
+
+    freeList = createElement('div', 'service-modal__free-list');
+    freeServices.forEach(function (freeSvc) {
+      var card = createElement('label', 'free-service');
+      card.setAttribute('data-free-id', freeSvc.id);
+
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'free-service__box';
+      box.setAttribute('data-svc-act', 'toggle-free');
+      box.setAttribute('aria-label', freeSvc.name);
+
+      var mark = createElement('span', 'free-service__mark');
+      mark.appendChild(createElement('span', 'free-service__tick'));
+
+      var body = createElement('span', 'free-service__body');
+      body.appendChild(createElement('span', 'free-service__name', freeSvc.name));
+      if (freeSvc.description) {
+        body.appendChild(createElement('span', 'free-service__desc', freeSvc.description));
+      }
+
+      card.appendChild(box);
+      card.appendChild(mark);
+      card.appendChild(body);
+      freeList.appendChild(card);
+    });
+    freeBlock.appendChild(freeList);
+    wrap.appendChild(freeBlock);
+  }
+
+  /** Обновляет счётчик выбранных бесплатных услуг и блокирует лишние при лимите. */
+  function refreshFree() {
+    if (!freeCounter) return;
+    var count = 0;
+    Object.keys(selectedFree).forEach(function (key) { if (selectedFree[key]) count++; });
+    freeCounter.textContent = freeLimit
+      ? 'Выбрано ' + count + ' из ' + freeLimit
+      : 'Выбрано ' + count;
+    var atLimit = freeLimit > 0 && count >= freeLimit;
+    if (freeList) {
+      Array.prototype.forEach.call(freeList.querySelectorAll('.free-service'), function (card) {
+        var fid = card.getAttribute('data-free-id');
+        var on = !!selectedFree[fid];
+        var blocked = atLimit && !on;
+        card.classList.toggle('is-disabled', blocked);
+        var box = card.querySelector('.free-service__box');
+        if (box) box.disabled = blocked;
+      });
+    }
+  }
+  refreshFree();
 
   var controls = createElement('div', 'service-modal__controls');
 
@@ -924,9 +1037,28 @@ function buildServiceContent(dept, service) {
   var liveTotal = createElement('span', 'service-modal__total');
   liveTotal.setAttribute('data-role', 'total');
 
+  // Плашка «Уже в корзине» — отдельной строкой НАД рядом с ценой и кнопкой,
+  // чтобы кнопка «В корзину» не вылезала за край окна.
+  if (inCart > 0) {
+    var inCartNote = createElement('p', 'service-modal__incart');
+    inCartNote.textContent = 'Уже в корзине: ' + inCart + ' шт.';
+    controls.appendChild(inCartNote);
+  }
+
   controls.appendChild(qtyBox);
   controls.appendChild(liveTotal);
   controls.appendChild(addBtn);
+
+  /* ----- Текст с условиями (service.addonsNote) — оформление как у
+     обычного описания услуги, размещается над блоком покупки. ----- */
+  if (service.addonsNote) {
+    var addonsNoteEl = createElement('div', 'service-modal__desc service-modal__note');
+    renderServiceDescription(addonsNoteEl, service.addonsNote);
+    wrap.appendChild(addonsNoteEl);
+  }
+
+  /* Блок покупки — последний элемент карточки, прижат к нижнему краю
+     через margin-top: auto (сама карточка — flex-колонка). */
   wrap.appendChild(controls);
 
   var state = { qty: 1 };
@@ -948,21 +1080,39 @@ function buildServiceContent(dept, service) {
     }, 1);
   }
 
-  /** Обновляет живой итог рядом с кнопкой. */
+  /** Обновляет живой итог рядом с кнопкой (только итоговая сумма с учётом количества). */
   function refreshTotal() {
     if (service.priceNegotiable) {
-      liveTotal.textContent = 'цена по договорённости';
+      liveTotal.textContent = '';
       return;
     }
     var unit = (Number(service.price || 0) + selectedAddonsTotal()) * selectedMultiplier();
-    liveTotal.textContent = state.qty > 1
-      ? formatPrice(unit) + ' × ' + state.qty + ' = ' + formatPrice(unit * state.qty)
-      : formatPrice(unit);
+    liveTotal.textContent = formatPrice(unit * state.qty);
   }
 
   refreshTotal();
 
   wrap.addEventListener('change', function (event) {
+    var freeBox = event.target.closest('input[data-svc-act="toggle-free"]');
+    if (freeBox) {
+      var card = freeBox.closest('.free-service');
+      var fid = card ? card.getAttribute('data-free-id') : null;
+      if (!fid) return;
+      if (freeBox.checked && freeLimit > 0) {
+        var chosen = 0;
+        Object.keys(selectedFree).forEach(function (key) { if (selectedFree[key]) chosen++; });
+        if (chosen >= freeLimit) {
+          freeBox.checked = false;
+          showToast('Бесплатно можно выбрать не более ' + freeLimit + ' услуг');
+          return;
+        }
+      }
+      selectedFree[fid] = freeBox.checked;
+      card.classList.toggle('is-on', freeBox.checked);
+      refreshFree();
+      return;
+    }
+
     var box = event.target.closest('input[data-svc-act="toggle-addon"]');
     if (!box) return;
     var toggle = box.closest('.addon-toggle');

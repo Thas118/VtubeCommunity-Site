@@ -280,23 +280,19 @@ var Cart = (function () {
   function buildOrderMessage(details) {
     if (isEmpty()) return null;
     var lines = [
-      'Хочу оформить заказ в Vtube Community.',
+      'Хочу оформить заказ.',
       '',
       'Услуги:'
     ];
     getItems().forEach(function (item) {
       if (item.negotiable) {
-        lines.push('• ' + item.name + ' — ' + item.qty + ' шт. (цена по договорённости)');
+        lines.push('• ' + item.name + ' — ' + item.qty + ' шт. ()');
       } else {
         lines.push('• ' + item.name + ' — ' + item.qty + ' × ' + formatPrice(item.unitPrice));
       }
       // Выбранные доп. услуги — подпунктами под услугой.
       item.addons.forEach(function (addon) {
-        if (typeof addon.multiplier === 'number') {
-          lines.push('    + ' + addon.name + ' — ×' + addon.multiplier);
-        } else {
-          lines.push('    + ' + addon.name + ' — ' + formatPrice(addon.price));
-        }
+        lines.push('    + ' + addon.name + ' — ' + formatAddonPrice(addon).replace(/^\+/, ''));
       });
     });
     lines.push('');

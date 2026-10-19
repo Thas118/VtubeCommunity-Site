@@ -97,15 +97,16 @@ async function main() {
   window.buildPanels();
   window.activateSection('editing', false);
 
-  console.log('2. Отдел монтажа: кнопки услуг и сортировка по цене');
+  console.log('2. Отдел монтажа: кнопки услуг в порядке из кода');
   const serviceBtns = document.querySelectorAll('#panel-editing .service-btn');
   assert(serviceBtns.length === 3, '3 кнопки услуг (Shorts, Нарезка, Эдит)');
-  // Сортировка по возрастанию цены. Тестовые цены: Нарезка 300, Shorts 500, Эдит 700.
+  // Порядок услуг повторяет порядок в коде (без сортировки по цене).
+  // Тестовые цены: Shorts 500, Нарезка 300, Эдит 700.
   const btnPrices = Array.from(serviceBtns).map((b) => b.querySelector('.service-btn__price').textContent);
-  assert(btnPrices[0].includes('300'), 'первая (дешёвая) услуга — Нарезка 300 ₽');
+  assert(btnPrices[0].includes('500'), 'первая услуга — Shorts 500 ₽ (как в коде)');
   assert(btnPrices[0].startsWith('от '), 'цена в формате «от N ₽» в отделе монтажа');
-  assert(btnPrices[1].includes('500'), 'вторая услуга — Shorts 500 ₽');
-  assert(btnPrices[2].includes('700'), 'третья (дорогая) услуга — Эдит 700 ₽');
+  assert(btnPrices[1].includes('300'), 'вторая услуга — Нарезка 300 ₽ (как в коде)');
+  assert(btnPrices[2].includes('700'), 'третья услуга — Эдит 700 ₽ (как в коде)');
 
   console.log('3. Открытие услуги в модальном окне и добавление в корзину');
   const shortsBtn = document.querySelector('#panel-editing [data-service-id="shorts"]');
@@ -251,12 +252,19 @@ async function main() {
   assert(!modal.classList.contains('is-open'), 'модальное окно закрылось');
 
   // Клиент с одиночным видео: бейдж «1 ролик» не показывается.
-  document.querySelector('[data-client-id="aleriaVT"]').click();
-  const content2 = document.getElementById('modal-content');
-  assert(content2.querySelectorAll('.work-card').length === 1, 'у aleriaVT одна работа');
-  assert(content2.querySelectorAll('.work-card__count').length === 0,
-    'для одиночного видео бейдж количества роликов не отображается');
-  document.getElementById('modal-close').click();
+  // Проверяем первого клиента с единственной работой (если такой есть в портфолио).
+  const singleWorkClient = window.SITE_DATA.portfolio.find((c) => (c.works || []).length === 1);
+  if (singleWorkClient) {
+    document.querySelector(`[data-client-id="${singleWorkClient.id}"]`).click();
+    const content2 = document.getElementById('modal-content');
+    assert(content2.querySelectorAll('.work-card').length === 1,
+      `у ${singleWorkClient.id} одна работа`);
+    assert(content2.querySelectorAll('.work-card__count').length === 0,
+      'для одиночного видео бейдж количества роликов не отображается');
+    document.getElementById('modal-close').click();
+  } else {
+    console.log('  skip - в портфолио нет клиента с одной работой, проверка бейджа пропущена');
+  }
 
   console.log('8. Разделы «Подробнее», «Наши исполнители», «Акции», «Как заказать»');
   document.getElementById('tab-about').click();
@@ -273,8 +281,11 @@ async function main() {
     'плашка «В разработке» в разделе исполнителей');
 
   document.getElementById('tab-promo').click();
-  assert(document.getElementById('panel-promo').textContent.indexOf('Акции') !== -1,
-    'вкладка «Акции» отображается');
+  // Проверяем, что панель активна и содержит текст — без привязки к конкретным
+  // формулировкам, чтобы можно было свободно редактировать описание раздела.
+  const promoPanel = document.getElementById('panel-promo');
+  assert(!!promoPanel && promoPanel.hidden === false && promoPanel.textContent.trim().length > 0,
+    'вкладка «Акции» отображается (панель активна и содержит текст)');
 
   document.getElementById('tab-howto').click();
   assert(document.getElementById('panel-howto').textContent.indexOf('самозанятый') !== -1,

@@ -8,24 +8,25 @@
 
 var Calculator = (function () {
 
-  /** Копия услуг отдела, отсортированная по возрастанию цены. */
-  function sortedServices(dept) {
-    return (dept.services || []).slice().sort(function (a, b) {
-      return a.price - b.price;
-    });
-  }
-
   /** Подпись цены услуги. Учитывает «по договорённости», диапазон и «от N ₽». */
   function priceLabel(dept, service) {
+    // Почасовая тарификация
+    if (service.pricePerHour) return '100 ₽/час';
+    // Тарифи по длительности
+    if (service.durations && service.durations.length) {
+      return 'по длительности: ' + service.durations.map(d => d.label + ' ' + d.price + ' ₽').join(', ');
+    }
+    // Цена по договорённости
     if (service.priceNegotiable) return 'цена по договорённости';
+    // Диапазон "от ... до ..."
     if (typeof service.priceMax === 'number' && service.priceMax > service.price) {
       return 'от ' + formatPrice(service.price) + ' до ' + formatPrice(service.priceMax);
     }
+    // Обычная цена от N ₽
     return (dept.priceFrom ? 'от ' : '') + formatPrice(service.price);
   }
 
-  /** Итог по одному отделу на основе общей корзины. */
-  function deptTotal(deptId) {
+  /** Итог по одному отделу на основе общей корзины. */function deptTotal(deptId) {
     return Cart.getItems().reduce(function (sum, item) {
       return item.deptId === deptId ? sum + item.lineTotal : sum;
     }, 0);
@@ -63,13 +64,18 @@ var Calculator = (function () {
     listCol.appendChild(listHead);
 
     var grid = createElement('div', 'service-grid');
-    sortedServices(dept).forEach(function (svc) {
+    var btnByServiceId = {}; // id -> кнопка карточки (для визуального состояния «в корзине»)
+    dept.services.forEach(function (svc) {
       var btn = createElement('button', 'service-btn');
       btn.type = 'button';
       btn.setAttribute('data-service-id', svc.id);
+      btnByServiceId[svc.id] = btn;
 
       btn.appendChild(createElement('span', 'service-btn__name', svc.name));
-      btn.appendChild(createElement('span', 'service-btn__price', priceLabel(dept, svc)));
+      var priceSpan = createElement('span', 'service-btn__price', priceLabel(dept, svc));
+      // Длинную подпись «цена по договорённости» держим в одну строку.
+      if (svc.priceNegotiable) priceSpan.classList.add('service-btn__price--negotiable');
+      btn.appendChild(priceSpan);
 
       btn.addEventListener('click', function () {
         if (typeof openServiceModal === 'function') {
@@ -100,9 +106,11 @@ var Calculator = (function () {
     function refreshSummary() {
       clearNode(summaryList);
       var any = false;
+      var inCartIds = {}; // id услуг этого отдела, которые уже в корзине
       Cart.getItems().forEach(function (item) {
         if (item.deptId !== dept.id) return;
         any = true;
+        inCartIds[item.serviceId] = true;
         var row = createElement('div', 'summary__row');
         row.appendChild(createElement('span', 'summary__name', item.name + ' × ' + item.qty));
         row.appendChild(createElement('span', 'summary__price', formatPrice(item.lineTotal)));
@@ -112,6 +120,11 @@ var Calculator = (function () {
         summaryList.appendChild(createElement('p', 'summary__empty', 'Выберите услуги слева'));
       }
       totalValue.textContent = formatPrice(deptTotal(dept.id));
+
+      /* Только визуальное состояние карточек — логика корзины не меняется. */
+      Object.keys(btnByServiceId).forEach(function (svcId) {
+        btnByServiceId[svcId].classList.toggle('is-in-cart', !!inCartIds[svcId]);
+      });
     }
 
     goCartBtn.addEventListener('click', function () {

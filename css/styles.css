@@ -444,7 +444,9 @@ button {
 .panel__lead {
   max-width: 720px;
   color: var(--text-muted);
-  margin-bottom: 26px;
+  font-size: 15.5px;
+  line-height: 1.6;
+  margin-bottom: 20px;
 }
 
 .section-head {
@@ -460,7 +462,8 @@ button {
 
 .calc {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  /* Каталог шире, «Расчёт» — компактный блок справа (без ощущения пустоты). */
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
   gap: var(--gap);
   align-items: start;
 }
@@ -495,16 +498,30 @@ button {
 .service-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
+  .service-grid--duration {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin: 8px 0;
+  }
+
+  .service-btn--duration {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
 
 .service-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
-  min-height: 96px;
-  padding: 18px;
+  /* Одинаковая высота в пределах ряда: grid растягивает, кнопка тянется вслед. */
+  height: 100%;
+  min-height: 88px;
+  padding: 16px;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -519,6 +536,7 @@ button {
 
 .service-btn:hover {
   border-color: rgba(124, 92, 255, .55);
+  background: var(--surface-2);
   transform: translateY(-2px);
   box-shadow: var(--shadow-soft);
 }
@@ -527,22 +545,65 @@ button {
   transform: scale(.98);
 }
 
+/* Услуга уже в корзине — аккуратная выделенная рамка + градиентная галочка. */
+.service-btn.is-in-cart {
+  border-color: rgba(124, 92, 255, .55);
+  background: var(--surface-2);
+}
+
+.service-btn.is-in-cart::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 18px;
+  height: 18px;
+  background: var(--gradient);
+  border-radius: 50%;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
 .service-btn__name {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
+  line-height: 1.35;
   color: var(--text);
+  /* Длинные названия переносятся аккуратно и не распирают карточку. */
+  overflow-wrap: break-word;
+  text-wrap: balance;
+  padding-right: 22px; /* место под галочку «в корзине» */
 }
 
 .service-btn__price {
-  font-size: 18px;
+  /* Цена прижата к низу карточки — выравнивание в пределах ряда. */
+  margin-top: auto;
+  font-size: 17px;
   font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: break-word;
   background: var(--gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
+/* «Цена по договорённости» — одна строка без переноса, шрифт чуть меньше,
+   чтобы длинная подпись влезла в карточку услуги. */
+.service-btn__price--negotiable {
+  white-space: nowrap;
+  font-size: 14px;
+}
+
 /* --- Окно услуги --- */
+
+/* Карточка услуги — flex-колонка: блок покупки закреплён у нижнего края
+   (margin-top: auto), независимо от длины описания. */
+.service-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
 
 .service-modal__head {
   display: flex;
@@ -612,8 +673,9 @@ button {
 
 
 .service-modal__incart {
-  display: inline-block;
-  margin-bottom: 14px;
+  /* Отдельная строка во всю ширину — над рядом «счётчик — итог — В корзину». */
+  flex: 0 0 100%;
+  margin: 0;
   padding: 6px 12px;
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -621,6 +683,7 @@ button {
   color: var(--text-muted);
   font-size: 14px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 /* --- Доп. услуги в карточке услуги (переключатели вкл/выкл) --- */
@@ -644,6 +707,11 @@ button {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Текст с условиями внизу карточки (service.addonsNote) — оформление как у описания. */
+.service-modal__note {
+  margin-top: 8px;
 }
 
 .addon-toggle {
@@ -726,13 +794,179 @@ button {
   font-size: 14px;
   font-weight: 700;
   color: var(--accent-2);
+  /* Единица измерения («/шт», «/10 секунд») остаётся в одной строке с ценой. */
+  white-space: nowrap;
 }
 
+/* --- Бесплатные услуги в карточке услуги (по образцу блока доп. услуг) --- */
+
+.service-modal__free {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.service-modal__free-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Подсказка с лимитом и ссылкой на прайс-лист. */
+.service-modal__free-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.service-modal__free-counter {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.service-modal__free-link {
+  color: var(--accent-2);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.service-modal__free-link:hover {
+  text-decoration: underline;
+}
+
+.service-modal__free-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.free-service {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+
+.free-service:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+}
+
+.free-service.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.free-service.is-disabled:hover {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+/* Сам чекбокс скрыт визуально, но остаётся доступен для клавиатуры и скринридеров. */
+.free-service__box {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Квадратная рамка под галочку — в отличие от переключателя доп. услуг. */
+.free-service__mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.free-service__tick {
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform var(--dur) var(--ease);
+}
+
+.free-service.is-on .free-service__mark {
+  background: var(--gradient);
+  border-color: transparent;
+}
+
+.free-service.is-on .free-service__tick {
+  transform: rotate(45deg) scale(1);
+}
+
+/* Фокус с клавиатуры — видимая обводка рамки. */
+.free-service__box:focus-visible ~ .free-service__mark {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 2px;
+}
+
+.free-service__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.free-service__name {
+  font-size: 14.5px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.free-service__desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* Ряд «счётчик — итог — В корзину» внизу карточки. Плашка «Уже в корзине»
+   занимает отдельную строку сверху, а счётчик, итог и кнопка — одну строку
+   под ней (кнопка прижата вправо). */
 .service-modal__controls {
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
+  /* Всегда у нижнего края карточки (карточка — flex-колонка). */
+  margin-top: auto;
+}
+
+.service-modal__controls > .qty,
+.service-modal__controls > .btn {
+  flex: 0 0 auto;
+}
+
+/* Кнопка «В корзину» — справа в той же строке. */
+.service-modal__controls > .btn {
+  margin-left: auto;
 }
 
 /* Живой итог выбранной услуги с доп. услугами. */
@@ -1190,6 +1424,7 @@ button {
   flex: 0 0 auto;
   font-weight: 600;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .cart-item__controls {
@@ -1554,7 +1789,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 780px;
+  /* Во всю ширину контейнера — как плашка «Документы» в футере. */
   padding: 26px;
 }
 
@@ -1607,6 +1842,126 @@ button {
 
 .placeholder-card__text {
   color: var(--text-muted);
+}
+
+/* ---------- Программа лояльности и акции ---------- */
+
+/* Сетка статусов: адаптируется от 1 колонки на телефоне до нескольких на десктопе. */
+.promo-tiers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.promo-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+}
+
+.promo-tier__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Номер статуса — градиентный кружок, как на других акцентных бейджах. */
+.promo-tier__rank {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.promo-tier__name {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.promo-tier__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.promo-tier__label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+
+.promo-tier__list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.promo-tier__item {
+  margin-bottom: 4px;
+}
+
+.promo-tier__item:last-child {
+  margin-bottom: 0;
+}
+
+/* Условия — приглушённый цвет, отличается от привилегий. */
+.promo-tier__list--conditions {
+  color: var(--text-muted);
+}
+
+/* Общие условия программы. */
+.promo-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 1200px;
+  padding: 20px 22px;
+}
+
+.promo-rules__title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.promo-rules__list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.promo-rules__item {
+  margin-bottom: 6px;
+}
+
+.promo-rules__item:last-child {
+  margin-bottom: 0;
+}
+
+/* Единицы измерения доп. услуг: на телефоне разрешаем цене переноситься,
+   чтобы длинные подписи («/клип до 60 сек») не вылезали за карточку. */
+@media (max-width: 640px) {
+  .addon-toggle__price,
+  .cart-item__addon-price {
+    white-space: normal;
+    flex: 0 1 auto;
+    overflow-wrap: break-word;
+  }
 }
 
 /* ---------- Нижняя часть сайта ---------- */
@@ -1820,6 +2175,12 @@ button {
 
   .service-modal__controls {
     gap: 10px;
+    /* На узком экране разрешаем перенос, чтобы кнопка не сжимала счётчик. */
+    flex-wrap: wrap;
+  }
+
+  .service-modal__controls > .btn {
+    margin-left: auto;
   }
 
   .cart-item__main {

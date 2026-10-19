@@ -17,6 +17,16 @@ function formatPrice(value) {
   return formatted + ' ₽';
 }
 
+/** Подпись цены доп. услуги: «+500 ₽», «+50 ₽/шт», «×3», «бесценно». */
+function formatAddonPrice(addon) {
+  if (!addon) return '';
+  if (addon.priceLabel) return addon.priceLabel;
+  if (typeof addon.multiplier === 'number') return '×' + addon.multiplier;
+  var text = '+' + formatPrice(addon.price);
+  if (addon.unit) text += '/' + addon.unit;
+  return text;
+}
+
 /** Экранирование строки для безопасной вставки в HTML (если нужен шаблон). */
 function escapeHtml(value) {
   return String(value == null ? '' : value)
