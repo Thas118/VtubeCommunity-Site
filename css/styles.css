@@ -1918,9 +1918,15 @@ button {
   margin-bottom: 0;
 }
 
-/* Условия — приглушённый цвет, отличается от привилегий. */
+/* Условия — белый цвет, как и привилегии. */
 .promo-tier__list--conditions {
-  color: var(--text-muted);
+  color: #fff;
+}
+
+.promo-tier__or-item {
+  color: var(--text);
+  font-weight: 400;
+  padding: 0 4px;
 }
 
 /* Общие условия программы. */
@@ -1940,7 +1946,7 @@ button {
 .promo-rules__list {
   margin: 0;
   padding-left: 18px;
-  color: var(--text-muted);
+  color: #fff;
   font-size: 14.5px;
   line-height: 1.6;
 }

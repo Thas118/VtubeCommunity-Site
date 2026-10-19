@@ -26,12 +26,6 @@ var Calculator = (function () {
     return (dept.priceFrom ? 'от ' : '') + formatPrice(service.price);
   }
 
-  /** Итог по одному отделу на основе общей корзины. */function deptTotal(deptId) {
-    return Cart.getItems().reduce(function (sum, item) {
-      return item.deptId === deptId ? sum + item.lineTotal : sum;
-    }, 0);
-  }
-
   /**
    * Создаёт панель отдела (role=tabpanel).
    * @param {Object} dept — отдел из SITE_DATA.departments
@@ -63,9 +57,20 @@ var Calculator = (function () {
       'Нажмите на услугу, чтобы открыть подробное описание и добавить в корзину.'));
     listCol.appendChild(listHead);
 
+    /* Условия отрисовки: сначала услуги по цене (дешёвые → дорогие),
+       индивидуальный заказ (priceNegotiable) всегда в конец. */
+    var services = (dept.services || []).slice();
+    services.sort(function (a, b) {
+      var aNeg = !!a.priceNegotiable;
+      var bNeg = !!b.priceNegotiable;
+      if (aNeg && !bNeg) return 1;
+      if (!aNeg && bNeg) return -1;
+      return (Number(a.price) || 0) - (Number(b.price) || 0);
+    });
+
     var grid = createElement('div', 'service-grid');
     var btnByServiceId = {}; // id -> кнопка карточки (для визуального состояния «в корзине»)
-    dept.services.forEach(function (svc) {
+    services.forEach(function (svc) {
       var btn = createElement('button', 'service-btn');
       btn.type = 'button';
       btn.setAttribute('data-service-id', svc.id);
@@ -106,11 +111,10 @@ var Calculator = (function () {
     function refreshSummary() {
       clearNode(summaryList);
       var any = false;
-      var inCartIds = {}; // id услуг этого отдела, которые уже в корзине
+      var inCartIds = {}; // id услуг этого отдела, которые уже в корзине (для подсветки карточек)
       Cart.getItems().forEach(function (item) {
-        if (item.deptId !== dept.id) return;
         any = true;
-        inCartIds[item.serviceId] = true;
+        if (item.deptId === dept.id) inCartIds[item.serviceId] = true;
         var row = createElement('div', 'summary__row');
         row.appendChild(createElement('span', 'summary__name', item.name + ' × ' + item.qty));
         row.appendChild(createElement('span', 'summary__price', formatPrice(item.lineTotal)));
@@ -119,7 +123,7 @@ var Calculator = (function () {
       if (!any) {
         summaryList.appendChild(createElement('p', 'summary__empty', 'Выберите услуги слева'));
       }
-      totalValue.textContent = formatPrice(deptTotal(dept.id));
+      totalValue.textContent = formatPrice(Cart.getTotal());
 
       /* Только визуальное состояние карточек — логика корзины не меняется. */
       Object.keys(btnByServiceId).forEach(function (svcId) {

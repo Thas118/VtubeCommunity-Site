@@ -100,13 +100,13 @@ async function main() {
   console.log('2. Отдел монтажа: кнопки услуг в порядке из кода');
   const serviceBtns = document.querySelectorAll('#panel-editing .service-btn');
   assert(serviceBtns.length === 3, '3 кнопки услуг (Shorts, Нарезка, Эдит)');
-  // Порядок услуг повторяет порядок в коде (без сортировки по цене).
-  // Тестовые цены: Shorts 500, Нарезка 300, Эдит 700.
+  // Порядок услуг сортируется по цене (дешёвые → дорогие), индивидуальный заказ — последним.
+  // Тестовые цены: Нарезка 300, Shorts 500, Эдит 700 — после сортировки так и выводятся.
   const btnPrices = Array.from(serviceBtns).map((b) => b.querySelector('.service-btn__price').textContent);
-  assert(btnPrices[0].includes('500'), 'первая услуга — Shorts 500 ₽ (как в коде)');
+  assert(btnPrices[0].includes('300'), 'первая услуга — Нарезка 300 ₽ (дешёвые первыми)');
   assert(btnPrices[0].startsWith('от '), 'цена в формате «от N ₽» в отделе монтажа');
-  assert(btnPrices[1].includes('300'), 'вторая услуга — Нарезка 300 ₽ (как в коде)');
-  assert(btnPrices[2].includes('700'), 'третья услуга — Эдит 700 ₽ (как в коде)');
+  assert(btnPrices[1].includes('500'), 'вторая услуга — Shorts 500 ₽ (по возрастанию цены)');
+  assert(btnPrices[2].includes('700'), 'третья услуга — Эдит 700 ₽ (дорогие последними)');
 
   console.log('3. Открытие услуги в модальном окне и добавление в корзину');
   const shortsBtn = document.querySelector('#panel-editing [data-service-id="shorts"]');

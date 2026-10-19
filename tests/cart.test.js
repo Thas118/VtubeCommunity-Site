@@ -108,10 +108,10 @@ console.log('3. Сообщение для Telegram');
 
   // Данные заказчика добавляются в сообщение.
   const withDetails = vm.runInContext(
-    "Cart.buildOrderMessage({ name: 'Иван', contact: '@ivan' })",
+    "Cart.buildOrderMessage({ name: 'Иван', twitch: '@ivan' })",
     sandbox);
   assert(withDetails.includes('Имя: Иван'), 'имя заказчика попадает в сообщение');
-  assert(withDetails.includes('Контакты: @ivan'), 'контакты заказчика попадают в сообщение');
+  assert(withDetails.includes('Ваш Twitch: @ivan'), 'контакты заказчика попадают в сообщение');
   assert(!withDetails.includes('Данные зрителей'), 'поля «Данные зрителей» больше нет в сообщении');
   assert(!withDetails.includes('Бот размещается'), 'упоминания хостинга бота больше нет в сообщении');
   assert(!withDetails.includes('Здравствуйте'), 'в новом шаблоне нет приветствия');

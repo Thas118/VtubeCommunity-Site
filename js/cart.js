@@ -280,13 +280,13 @@ var Cart = (function () {
   function buildOrderMessage(details) {
     if (isEmpty()) return null;
     var lines = [
-      'Хочу оформить заказ.',
+      'Хочу оформить заказ в Vtube Community.',
       '',
       'Услуги:'
     ];
     getItems().forEach(function (item) {
       if (item.negotiable) {
-        lines.push('• ' + item.name + ' — ' + item.qty + ' шт. ()');
+        lines.push('• ' + item.name + ' — ' + item.qty + ' шт. (цена по договорённости)');
       } else {
         lines.push('• ' + item.name + ' — ' + item.qty + ' × ' + formatPrice(item.unitPrice));
       }
@@ -302,7 +302,9 @@ var Cart = (function () {
     var extra = [];
     if (details) {
       if (details.name) extra.push('Имя: ' + details.name);
-      if (details.contact) extra.push('Контакты: ' + details.contact);
+      if (details.twitch) extra.push('Ваш Twitch: ' + details.twitch);
+      if (details.youtube) extra.push('Ваш Youtube канал: ' + details.youtube);
+      if (details.telegram) extra.push('Ваш Telegram-канал: ' + details.telegram);
     }
     if (extra.length) {
       lines.push('');
@@ -311,8 +313,8 @@ var Cart = (function () {
 
     // Согласия — попадают в сообщение только если отмечены.
     var consents = [];
-    if (details && details.consentPd) consents.push('- Я согласен на обработку персональных данных');
-    if (details && details.consentOffer) consents.push('- Я согласен с офертой');
+    if (details && details.consentPd) consents.push('— Я согласен на обработку персональных данных');
+    if (details && details.consentOffer) consents.push('— Я согласен с офертой');
     if (consents.length) {
       lines.push('');
       lines.push(consents.join('\n'));

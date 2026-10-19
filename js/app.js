@@ -228,11 +228,17 @@ function createPromoPanel() {
     privGroup.appendChild(privList);
     card.appendChild(privGroup);
 
-    // Блок «Условия».
+    // Блок «Условия»: логика OR — чтобы войти в статус, достаточно выполнить одно
+    // из перечисленных условий (проверяется «или»).
     var condGroup = createElement('div', 'promo-tier__group');
     condGroup.appendChild(createElement('h4', 'promo-tier__label', 'Условия'));
     var condList = createElement('ul', 'promo-tier__list promo-tier__list--conditions');
-    (tier.conditions || []).forEach(function (text) {
+    (tier.conditions || []).forEach(function (text, idx) {
+      if (idx > 0) {
+        var orItem = createElement('li', 'promo-tier__or-item');
+        orItem.textContent = 'или';
+        condList.appendChild(orItem);
+      }
       condList.appendChild(createElement('li', 'promo-tier__item', text));
     });
     condGroup.appendChild(condList);
@@ -495,7 +501,9 @@ function readOrderDetails() {
   }
   return {
     name: val('order-name'),
-    contact: val('order-contact'),
+    twitch: val('order-twitch'),
+    youtube: val('order-youtube'),
+    telegram: val('order-telegram'),
     consentPd: checked('consent-pd'),
     consentOffer: checked('consent-offer')
   };
@@ -1349,7 +1357,7 @@ function initApp() {
   }
 
   /* Поля оформления: живое обновление предпросмотра сообщения */
-  ['order-name', 'order-contact'].forEach(function (id) {
+  ['order-name', 'order-twitch', 'order-youtube', 'order-telegram'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', updateOrderPreview);
