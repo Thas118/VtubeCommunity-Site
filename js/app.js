@@ -539,9 +539,9 @@ function checkout() {
       : 'Открывается Telegram с готовым сообщением заказа');
   });
 
-  var url = Cart.buildShareUrl(message);
+  var tgUrl = SITE_DATA.links.telegram;
   try {
-    window.open(url, '_blank', 'noopener');
+    window.open(tgUrl, '_blank', 'noopener');
   } catch (e) {
     // Если браузер заблокировал открытие новой вкладки,
     // текущая страница сайта не уходит — сообщение уже скопировано в буфер обмена.
@@ -857,9 +857,17 @@ function renderServiceDescription(container, text) {
     if (!paragraph) {
       paragraph = createElement('p', 'service-modal__paragraph');
     }
-    paragraph.appendChild(
-      document.createTextNode((paragraph.textContent ? ' ' : '') + line)
-    );
+    var textToAdd = (paragraph.textContent ? ' ' : '') + line;
+    var parts = textToAdd.split(/(<strong>|<\/strong>)/);
+    var isStrong = false;
+    parts.forEach(function (part) {
+      if (part === '<strong>') { isStrong = true; return; }
+      if (part === '</strong>') { isStrong = false; return; }
+      if (!part) return;
+      var node = isStrong ? document.createElement('strong') : document.createTextNode(part);
+      if (isStrong) node.textContent = part;
+      paragraph.appendChild(node);
+    });
   });
 
   flushParagraph();

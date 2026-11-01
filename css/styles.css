@@ -1926,7 +1926,9 @@ button {
 .promo-tier__or-item {
   color: var(--text);
   font-weight: 400;
-  padding: 0 4px;
+  padding: 0 2px 0 0;
+  margin-bottom: 4px;
+  list-style: none;
 }
 
 /* Общие условия программы. */
